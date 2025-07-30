@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Digitlex</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            transition: cursor 0.3s ease;
+        }
+
+        /* הסתרת cursor כשאין פעילות */
+        body.cursor-hidden {
+            cursor: none !important;
+        }
+
+        body.cursor-hidden * {
+            cursor: none !important;
+        }
+
+        /* כותרת עליונה */
+        .header {
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 3px solid #ffd700;
+            position: relative;
+            z-index: 100;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+            color: #ffd700;
+            flex: 1;
+            text-align: center;
+        }
+
+        .datetime {
+            position: absolute;
+            top: 15px;
+            left: 20px;
+            background: linear-gradient(135deg, rgba(0, 0, 0, 0.9), rgba(0, 0, 0, 0.8));
+            padding: 15px 20px;
+            border-radius: 12px;
+            border: 2px solid #ffd700;
+            box-shadow: 0 6px 25px rgba(0, 0, 0, 0.7);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            backdrop-filter: blur(15px);
+            min-width: 160px;
+            animation: glow 3s ease-in-out infinite alternate;
+            z-index: 10;
+        }
+
+        @keyframes glow {
+            from {
+                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6), 0 0 15px rgba(255, 215, 0, 0.2);
+            }
+            to {
+                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6), 0 0 25px rgba(255, 215, 0, 0.4);
+            }
+        }
+
+        .datetime .time-section {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            margin-bottom: 8px;
+        }
+
+        .datetime .date-section {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            border-top: 1px solid #ffd700;
+            padding-top: 8px;
+        }
+
+        .datetime #currentTime {
+            font-weight: bold;
+            color: #ffd700;
+            font-size: 2.2em;
+            text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.9);
+            letter-spacing: 2px;
+            font-family: 'Courier New', monospace;
+            margin: 3px 0;
+            line-height: 1;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .datetime #currentDate {
+            color: #ffffff;
+            font-size: 1.3em;
+            font-weight: 600;
+            text-shadow: 1px 1px 4px rgba(0, 0, 0, 0.7);
+            margin: 3px 0;
+            line-height: 1.1;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .datetime .time-label {
+            color: #ffd700;
+            font-size: 0.7em;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 2px;
+            opacity: 0.8;
+        }
+
+        .datetime .date-label {
+            color: #ffd700;
+            font-size: 0.7em;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 2px;
+            opacity: 0.8;
+        }
+
+        .datetime .day-name {
+            color: #e0e0e0;
+            font-size: 0.75em;
+            font-weight: 400;
+            margin-top: 2px;
+            opacity: 0.9;
+        }
+
+        .logo-area {
+            position: absolute;
+            top: 50%;
+            right: 30px;
+            transform: translateY(-50%);
+            width: 120px;
+            height: 80px;
+            background: rgba(255, 215, 0, 0.1);
+            border: 2px dashed #ffd700;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8em;
+            color: #ffd700;
+            text-align: center;
+        }
+
+        .logo-area img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+
+        .connection-status {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 0.8em;
+            font-weight: bold;
+        }
+
+        .datetime-single-line {
+            position: absolute;
+            top: 10px;
+            left: 120px;
+            background: linear-gradient(135deg, rgba(0, 0, 0, 0.9), rgba(0, 0, 0, 0.8));
+            padding: 8px 15px;
+            border-radius: 8px;
+            border: 1px solid #ffd700;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.7);
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            backdrop-filter: blur(10px);
+            z-index: 10;
+            font-size: 0.9em;
+        }
+
+        .datetime-single-line .time-part {
+            color: #ffd700;
+            font-weight: bold;
+            font-family: 'Courier New', monospace;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .datetime-single-line .date-part {
+            color: #ffffff;
+            font-weight: 600;
+        }
+
+        .datetime-single-line .separator {
+            color: #ffd700;
+            font-weight: bold;
+        }
+
+        /* כפתור יציאה */
+        .exit-button {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 40px;
+            height: 40px;
+            background: rgba(220, 53, 69, 0.8);
+            border: 2px solid #dc3545;
+            border-radius: 50%;
+            color: white;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            z-index: 200;
+        }
+
+        .exit-button:hover {
+            background: rgba(220, 53, 69, 1);
+            transform: scale(1.1);
+        }
+
+        .exit-button:active {
+            transform: scale(0.95);
+        }
+
+        .status-online {
+            background: #28a745;
+            color: white;
+        }
+
+        .status-offline {
+            background: #dc3545;
+            color: white;
+        }
+
+        /* אזור תוכן ראשי */
+        .main-content {
+            flex: 1;
+            display: flex;
+            height: calc(100vh - 200px); /* השארת מקום לRSS ולהודעות */
+            position: relative;
+        }
+
+        /* תוכן מרכזי */
+        .content-area {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            background: rgba(0, 0, 0, 0.3);
+            margin: 20px;
+            margin-right: 320px; /* השארת מקום להודעות רצות */
+            margin-left: 20px; /* פחות מרווח מהצד השמאלי */
+            border-radius: 20px;
+            overflow: hidden;
+        }
+
+        .content-item {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 1s ease-in-out;
+        }
+
+        .content-item.active {
+            opacity: 1;
+        }
+
+        .content-item img,
+        .content-item video {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            border-radius: 10px;
+        }
+
+        .content-item .custom-content {
+            width: 100%;
+            height: 100%;
+            padding: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+        }
+
+        /* הודעות רצות בצד */
+        .running-messages-sidebar {
+            position: fixed;
+            right: 0;
+            top: 100px; /* מתחת לכותרת */
+            bottom: 120px; /* מעל RSS */
+            width: 300px;
+            background: rgba(0, 0, 0, 0.8);
+            border: 2px solid #ffd700;
+            border-left: none;
+            border-radius: 20px 0 0 20px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            z-index: 50;
+        }
+
+        .running-messages-title {
+            background: rgba(255, 215, 0, 0.2);
+            color: #ffd700;
+            padding: 15px;
+            text-align: center;
+            font-weight: bold;
+            border-bottom: 2px solid #ffd700;
+        }
+
+        .running-messages-content {
+            flex: 1;
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .message-scroller {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #ffd700;
+            animation: scroll-vertical 15s linear infinite;
+            text-align: center;
+            line-height: 1.6;
+            will-change: transform;
+            backface-visibility: hidden;
+        }
+
+        /* RSS באזור תחתון שמאל */
+        .rss-bottom {
+            position: fixed;
+            bottom: 0;
+            right: 0;
+            left: 0;
+            height: 120px;
+            background: rgba(0, 0, 0, 0.9);
+            border-top: 3px solid #ffd700;
+            overflow: hidden;
+            z-index: 100;
+        }
+
+        .rss-ticker {
+            height: 100%;
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+        }
+
+        .rss-ticker-content {
+            display: flex;
+            /* Animation will be set by JavaScript */
+            white-space: nowrap;
+            font-size: 1.1em;
+            color: #ffd700;
+            will-change: transform;
+            backface-visibility: hidden;
+        }
+        
+        @keyframes rssScroll {
+            0% {
+                transform: translateX(-100%);
+            }
+            100% {
+                transform: translateX(100%);
+            }
+        }
+
+        /* אנימציה חלקה יותר ל-RSS */
+        .rss-ticker-content {
+            /* Animation will be set by JavaScript */
+            animation-play-state: running;
+        }
+
+        .rss-ticker-content:hover {
+            animation-play-state: paused;
+        }
+
+        .rss-ticker-item {
+            margin-left: 80px;
+            padding: 10px 20px;
+            background: rgba(255, 215, 0, 0.1);
+            border-radius: 10px;
+            border: 1px solid #ffd700;
+            white-space: nowrap;
+        }
+
+        .rss-ticker-item-title {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .rss-ticker-item-content {
+            font-size: 0.9em;
+            opacity: 0.8;
+        }
+
+        /* מסך הגדרה */
+        .setup-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.95);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .setup-content {
+            background: white;
+            color: #333;
+            padding: 40px;
+            border-radius: 20px;
+            text-align: center;
+            max-width: 500px;
+            width: 90%;
+        }
+
+        .setup-content h2 {
+            margin-bottom: 20px;
+            color: #333;
+        }
+
+        .setup-content input {
+            width: 100%;
+            padding: 15px;
+            margin: 10px 0;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            font-size: 1.1em;
+            text-align: center;
+        }
+
+        .setup-content button {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-size: 1.1em;
+            cursor: pointer;
+            margin: 10px;
+        }
+
+        .setup-content button:hover {
+            background: #218838;
+        }
+
+        /* לודינג */
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2em;
+            color: #ffd700;
+        }
+
+        .loading::after {
+            content: '';
+            width: 50px;
+            height: 50px;
+            border: 5px solid #ffd700;
+            border-top: 5px solid transparent;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 20px;
+        }
+
+        /* אנימציות */
+        @keyframes scroll-rtl {
+            0% {
+                transform: translate3d(100%, 0, 0);
+            }
+            100% {
+                transform: translate3d(-100%, 0, 0);
+            }
+        }
+
+        @keyframes scroll-vertical {
+            0% {
+                transform: translateY(100%);
+            }
+            100% {
+                transform: translateY(-100%);
+            }
+        }
+
+        @keyframes slideInRight {
+            from {
+                opacity: 0;
+                transform: translateX(50px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        /* רספונסיבי */
+        @media (max-width: 1200px) {
+            .running-messages-sidebar {
+                width: 250px;
+            }
+            
+            .content-area {
+                margin-right: 270px;
+                margin-left: 20px;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                flex-direction: column;
+            }
+            
+            .running-messages-sidebar {
+                position: relative;
+                width: 100%;
+                height: 150px;
+                top: 0;
+                bottom: auto;
+                border-radius: 20px;
+                margin: 10px;
+            }
+            
+            .content-area {
+                margin-left: 20px;
+                margin-right: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- מסך הגדרה -->
+    <div id="setupScreen" class="setup-screen" style="display: none;">
+        <div class="setup-content">
+            <h2>🖥️ הגדרת Digitlex</h2>
+            <p>אנא הזן את מזהה המסך שקיבלת מפאנל הניהול:</p>
+            <input type="text" id="screenIdInput" placeholder="מזהה המסך" />
+            <br>
+            <button onclick="saveScreenId()">שמור והתחל</button>
+            <button onclick="testConnection()">בדוק חיבור</button>
+        </div>
+    </div>
+
+    <!-- מסך ראשי -->
+    <div id="mainScreen">
+        <!-- כותרת -->
+        <header class="header">
+            <div class="connection-status" id="connectionStatus">
+                <span id="statusText">בודק חיבור...</span>
+            </div>
+            
+            <div class="datetime-single-line" id="datetimeSingleLine">
+                <span class="time-part" id="currentTimeSingle">--:--:--</span>
+                <span class="separator">|</span>
+                <span class="date-part" id="currentDateSingle">-- / -- / ----</span>
+            </div>
+            
+            <div class="exit-button" id="exitButton" onclick="exitApp()" title="יציאה (ESC)">
+                ✕
+            </div>
+            
+            <div class="datetime" style="display: none;">
+                <div class="time-section">
+                    <div class="time-label">🕐 שעה</div>
+                    <div id="currentTime">--:--:--</div>
+                </div>
+                <div class="date-section">
+                    <div class="date-label">📅 תאריך</div>
+                    <div id="currentDate">-- / -- / ----</div>
+                    <div class="day-name" id="dayName">יום ראשון</div>
+                </div>
+            </div>
+            
+            <h1 id="screenTitle">Digitlex</h1>
+            
+            <div class="logo-area" id="logoArea">
+                <span>מקום ללוגו</span>
+            </div>
+        </header>
+
+        <!-- תוכן ראשי -->
+        <main class="main-content">
+            <!-- אזור תוכן מרכזי -->
+            <div class="content-area">
+                <div id="loadingMessage" class="loading">טוען נתונים...</div>
+                <div id="contentContainer"></div>
+            </div>
+        </main>
+
+        <!-- הודעות רצות בצד -->
+        <aside id="runningMessagesSidebar" class="running-messages-sidebar" style="display: none;">
+            <div class="running-messages-title">📢 הודעות</div>
+            <div class="running-messages-content">
+                <div class="message-scroller" id="messageScroller"></div>
+            </div>
+        </aside>
+
+        <!-- RSS רץ למטה -->
+        <div id="rssBottom" class="rss-bottom" style="display: none;">
+            <div class="rss-ticker">
+                <div class="rss-ticker-content" id="rssTickerContent">
+                    <div class="loading">טוען חדשות...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="renderer.js"></script>
+</body>
+</html> 

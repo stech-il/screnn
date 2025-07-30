@@ -1,0 +1,56 @@
+{
+  "name": "digital-signage-desktop",
+  "version": "1.0.0",
+  "description": "אפליקציה דיגיטלית למסכים - גרסת שולחן עבודה",
+  "main": "src/main.js",
+  "homepage": "./",
+  "private": true,
+  "dependencies": {
+    "electron": "^27.1.0",
+    "axios": "^1.3.4",
+    "socket.io-client": "^4.7.5",
+    "fs-extra": "^11.1.1",
+    "node-cron": "^3.0.3",
+    "electron-store": "^8.1.0",
+    "electron-updater": "^6.1.4"
+  },
+  "devDependencies": {
+    "electron-builder": "^24.6.4",
+    "concurrently": "^8.2.2",
+    "wait-on": "^7.0.1"
+  },
+  "scripts": {
+    "electron": "electron .",
+    "start": "electron .",
+    "build": "electron-builder",
+    "dist": "electron-builder --publish=never",
+    "pack": "electron-builder --dir",
+    "dev": "concurrently \"npm run server:start\" \"wait-on http://localhost:3001 && electron .\"",
+    "server:start": "cd ../server && node index.js"
+  },
+  "build": {
+    "appId": "com.digital-signage.desktop",
+    "productName": "מסכים דיגיטליים",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "node_modules/**/*"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "assets/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "מסכים דיגיטליים"
+    }
+  },
+  "author": "Digital Signage System",
+  "license": "MIT"
+} 

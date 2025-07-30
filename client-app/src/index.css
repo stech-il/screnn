@@ -1,0 +1,380 @@
+body {
+  margin: 0;
+  padding: 0;
+  direction: rtl;
+  font-family: 'Arial Hebrew', Arial, -apple-system, BlinkMacSystemFont, 'Segoe UI', 
+    'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 
+    'Helvetica Neue', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background: #000;
+  color: white;
+  overflow: hidden;
+  cursor: none;
+}
+
+html, body, #root {
+  height: 100vh;
+  width: 100vw;
+}
+
+* {
+  box-sizing: border-box;
+  cursor: none !important;
+  user-select: none;
+}
+
+/* Main Screen Layout */
+.screen-container {
+  height: 100vh;
+  width: 100vw;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+}
+
+/* Header */
+.screen-header {
+  height: 80px;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 40px;
+  backdrop-filter: blur(10px);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+}
+
+.screen-logo {
+  font-size: 28px;
+  font-weight: bold;
+  color: #fff;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.screen-datetime {
+  text-align: left;
+  direction: ltr;
+}
+
+.screen-time {
+  font-size: 32px;
+  font-weight: bold;
+  color: #fff;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+  margin-bottom: 4px;
+}
+
+.screen-date {
+  font-size: 18px;
+  color: #ccc;
+  font-weight: 300;
+}
+
+/* Main Content Area */
+.screen-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Content Display */
+.content-display {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.content-item {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 1s ease-in-out;
+}
+
+.content-item.active {
+  opacity: 1;
+}
+
+.content-image,
+.content-video {
+  max-width: 90%;
+  max-height: 90%;
+  object-fit: contain;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+.content-code {
+  width: 90%;
+  height: 90%;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+.content-code iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
+/* RSS News Feed */
+.rss-feed {
+  height: 200px;
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(10px);
+  border-top: 2px solid rgba(255, 255, 255, 0.1);
+  padding: 20px;
+  overflow: hidden;
+}
+
+.rss-title {
+  font-size: 24px;
+  font-weight: bold;
+  color: #fff;
+  margin-bottom: 16px;
+  text-align: center;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.rss-items {
+  height: 140px;
+  overflow: hidden;
+  position: relative;
+}
+
+.rss-item {
+  position: absolute;
+  width: 100%;
+  padding: 8px 16px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  margin-bottom: 8px;
+  opacity: 0;
+  transform: translateY(20px);
+  transition: all 0.5s ease;
+}
+
+.rss-item.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.rss-item-title {
+  font-size: 18px;
+  font-weight: bold;
+  color: #fff;
+  margin-bottom: 4px;
+  line-height: 1.3;
+}
+
+.rss-item-source {
+  font-size: 14px;
+  color: #ccc;
+  margin-bottom: 4px;
+}
+
+.rss-item-description {
+  font-size: 14px;
+  color: #ddd;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Running Messages */
+.running-messages {
+  height: 60px;
+  background: rgba(255, 193, 7, 0.9);
+  color: #000;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  position: relative;
+  font-weight: bold;
+  font-size: 18px;
+}
+
+.running-message {
+  position: absolute;
+  white-space: nowrap;
+  animation: scroll-right 30s linear infinite;
+  padding: 0 20px;
+}
+
+@keyframes scroll-right {
+  0% {
+    transform: translateX(100vw);
+  }
+  100% {
+    transform: translateX(-100%);
+  }
+}
+
+/* Loading Screen */
+.loading-screen {
+  height: 100vh;
+  width: 100vw;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+}
+
+.loading-spinner {
+  width: 60px;
+  height: 60px;
+  border: 4px solid rgba(255, 255, 255, 0.3);
+  border-top: 4px solid #fff;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 24px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.loading-text {
+  font-size: 24px;
+  color: #fff;
+  text-align: center;
+  margin-bottom: 16px;
+}
+
+.loading-details {
+  font-size: 16px;
+  color: #ccc;
+  text-align: center;
+  line-height: 1.5;
+}
+
+/* Error Screen */
+.error-screen {
+  height: 100vh;
+  width: 100vw;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #d32f2f 0%, #f44336 100%);
+  text-align: center;
+  padding: 40px;
+}
+
+.error-icon {
+  font-size: 80px;
+  color: #fff;
+  margin-bottom: 24px;
+}
+
+.error-title {
+  font-size: 32px;
+  color: #fff;
+  margin-bottom: 16px;
+  font-weight: bold;
+}
+
+.error-message {
+  font-size: 18px;
+  color: #ffcdd2;
+  margin-bottom: 24px;
+  line-height: 1.5;
+}
+
+.error-details {
+  font-size: 14px;
+  color: #ffcdd2;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 16px;
+  border-radius: 8px;
+  font-family: monospace;
+  text-align: left;
+  direction: ltr;
+  max-width: 600px;
+}
+
+/* Status Indicator */
+.status-indicator {
+  position: fixed;
+  top: 20px;
+  left: 20px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  z-index: 1000;
+}
+
+.status-online {
+  background: #4caf50;
+  box-shadow: 0 0 10px #4caf50;
+}
+
+.status-offline {
+  background: #f44336;
+  box-shadow: 0 0 10px #f44336;
+}
+
+.status-connecting {
+  background: #ff9800;
+  box-shadow: 0 0 10px #ff9800;
+  animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+  .screen-header {
+    height: 60px;
+    padding: 0 20px;
+  }
+  
+  .screen-logo {
+    font-size: 24px;
+  }
+  
+  .screen-time {
+    font-size: 24px;
+  }
+  
+  .screen-date {
+    font-size: 14px;
+  }
+  
+  .rss-feed {
+    height: 150px;
+    padding: 15px;
+  }
+  
+  .rss-title {
+    font-size: 20px;
+    margin-bottom: 12px;
+  }
+  
+  .running-messages {
+    height: 50px;
+    font-size: 16px;
+  }
+} 

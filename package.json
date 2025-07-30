@@ -1,0 +1,43 @@
+{
+  "name": "digital-signage-system",
+  "version": "1.0.0",
+  "description": "מערכת מסכים דיגיטליים עם שרת, פאנל ניהול ותוכנה למחשב",
+  "main": "index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "concurrently \"npm run server:dev\" \"npm run admin:dev\" \"npm run client:dev\"",
+    "server:dev": "nodemon server/index.js",
+    "admin:dev": "cd admin-panel && npm run start:win",
+    "client:dev": "cd client-app && npm run start:win",
+    "desktop:dev": "cd desktop-client && npm start",
+    "desktop:build": "cd desktop-client && npm run build",
+    "install:all": "npm install && cd admin-panel && npm install && cd ../client-app && npm install && cd ../desktop-client && npm install",
+    "build": "cd admin-panel && npm run build && cd ../client-app && npm run build"
+  },
+  "dependencies": {
+    "axios": "^1.11.0",
+    "bcrypt": "^6.0.0",
+    "connect-sqlite3": "^0.9.16",
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "express-session": "^1.18.2",
+    "multer": "^1.4.5-lts.1",
+    "node-cron": "^3.0.3",
+    "rss-parser": "^3.13.0",
+    "socket.io": "^4.7.5",
+    "sqlite3": "^5.1.6",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "nodemon": "^3.0.2"
+  },
+  "keywords": [
+    "digital-signage",
+    "screens",
+    "display",
+    "hebrew"
+  ],
+  "author": "Your Name",
+  "license": "MIT"
+}

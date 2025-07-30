@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>הפעלת Digitlex</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            padding: 50px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            min-height: 100vh;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .container {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 40px;
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+            max-width: 500px;
+        }
+        
+        h1 {
+            margin-bottom: 30px;
+            font-size: 2.5em;
+        }
+        
+        .input-group {
+            margin: 20px 0;
+            text-align: right;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 10px;
+            font-size: 1.2em;
+        }
+        
+        input {
+            width: 100%;
+            padding: 15px;
+            font-size: 1.1em;
+            border: none;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.9);
+            color: #333;
+            direction: ltr;
+            text-align: center;
+        }
+        
+        button {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 1.2em;
+            border-radius: 10px;
+            cursor: pointer;
+            margin: 10px;
+            transition: all 0.3s ease;
+        }
+        
+        button:hover {
+            background: #218838;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+        
+        .instructions {
+            margin-top: 30px;
+            text-align: right;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 10px;
+        }
+        
+        .instructions h3 {
+            margin-bottom: 15px;
+            color: #ffd700;
+        }
+        
+        .instructions ol {
+            text-align: right;
+            margin: 0;
+            padding-right: 20px;
+        }
+        
+        .instructions li {
+            margin: 10px 0;
+            font-size: 1.1em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🖥️ הפעלת Digitlex</h1>
+        
+        <div class="input-group">
+            <label for="screenId">מזהה המסך:</label>
+            <input 
+                type="text" 
+                id="screenId" 
+                placeholder="הזן את מזהה המסך שקיבלת מפאנל הניהול"
+                value=""
+            />
+        </div>
+        
+        <button onclick="launchScreen()">🚀 הפעל מסך</button>
+        <button onclick="launchFullscreen()">⛶ מסך מלא</button>
+        
+        <div class="instructions">
+            <h3>הוראות שימוש:</h3>
+            <ol>
+                <li>הפעל את השרת והפאנל ניהול</li>
+                <li>צור מסך חדש בפאנל הניהול</li>
+                <li>העתק את מזהה המסך שקיבלת</li>
+                <li>הדבק את המזהה בשדה למעלה</li>
+                <li>לחץ על "הפעל מסך" או "מסך מלא"</li>
+            </ol>
+        </div>
+    </div>
+
+    <script>
+        // Load saved screen ID
+        window.onload = function() {
+            const savedId = localStorage.getItem('screenId');
+            if (savedId) {
+                document.getElementById('screenId').value = savedId;
+            }
+        };
+
+        function launchScreen() {
+            const screenId = document.getElementById('screenId').value.trim();
+            if (!screenId) {
+                alert('אנא הזן מזהה מסך');
+                return;
+            }
+            
+            // Save for next time
+            localStorage.setItem('screenId', screenId);
+            
+            // Launch the screen
+            const url = `http://localhost:3002?id=${encodeURIComponent(screenId)}`;
+            window.open(url, '_blank');
+        }
+
+        function launchFullscreen() {
+            const screenId = document.getElementById('screenId').value.trim();
+            if (!screenId) {
+                alert('אנא הזן מזהה מסך');
+                return;
+            }
+            
+            // Save for next time
+            localStorage.setItem('screenId', screenId);
+            
+            // Launch in fullscreen
+            const url = `http://localhost:3002?id=${encodeURIComponent(screenId)}`;
+            const newWindow = window.open(url, '_blank', 'fullscreen=yes,scrollbars=no,menubar=no,toolbar=no,location=no,status=no');
+            
+            // Try to make it fullscreen
+            setTimeout(() => {
+                if (newWindow && newWindow.document) {
+                    newWindow.document.documentElement.requestFullscreen?.() ||
+                    newWindow.document.webkitRequestFullscreen?.() ||
+                    newWindow.document.msRequestFullscreen?.();
+                }
+            }, 1000);
+        }
+
+        // Enter key support
+        document.getElementById('screenId').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                launchScreen();
+            }
+        });
+    </script>
+</body>
+</html> 

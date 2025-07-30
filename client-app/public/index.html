@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#000000" />
+    <meta name="description" content="תוכנת Digitlex" />
+    <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
+    <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
+    <title>Digitlex</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        font-family: 'Arial Hebrew', Arial, -apple-system, BlinkMacSystemFont, 'Segoe UI', 
+          'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 
+          'Helvetica Neue', sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        direction: rtl;
+        background: #000;
+        color: white;
+        overflow: hidden;
+      }
+
+      html, body, #root {
+        height: 100vh;
+        width: 100vw;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      /* Hide cursor for kiosk mode */
+      * {
+        cursor: none !important;
+      }
+
+      /* Disable text selection */
+      * {
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+        user-select: none;
+      }
+
+      /* Disable context menu */
+      body {
+        -webkit-touch-callout: none;
+        -webkit-user-select: none;
+        -khtml-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+        user-select: none;
+      }
+    </style>
+  </head>
+  <body>
+    <noscript>יש להפעיל JavaScript כדי להריץ את המסך הדיגיטלי.</noscript>
+    <div id="root"></div>
+  </body>
+</html> 

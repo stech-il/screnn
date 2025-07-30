@@ -1,0 +1,110 @@
+body {
+  margin: 0;
+  direction: rtl;
+  font-family: 'Arial Hebrew', Arial, -apple-system, BlinkMacSystemFont, 'Segoe UI', 
+    'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 
+    'Helvetica Neue', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #f5f5f5;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
+}
+
+.ant-layout {
+  min-height: 100vh;
+}
+
+.ant-layout-header {
+  background: #001529;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+}
+
+.ant-layout-sider {
+  background: #fff;
+}
+
+.ant-menu-item {
+  text-align: right !important;
+}
+
+.ant-menu-submenu-title {
+  text-align: right !important;
+}
+
+.screen-card {
+  margin-bottom: 16px;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.screen-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.content-item {
+  border: 1px solid #f0f0f0;
+  border-radius: 6px;
+  padding: 16px;
+  margin-bottom: 12px;
+  background: white;
+}
+
+.upload-area {
+  border: 2px dashed #d9d9d9;
+  border-radius: 6px;
+  padding: 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.3s;
+}
+
+.upload-area:hover {
+  border-color: #1890ff;
+}
+
+.running-message {
+  background: linear-gradient(90deg, transparent, #1890ff, transparent);
+  background-size: 200% 100%;
+  animation: scroll 10s linear infinite;
+  padding: 8px;
+  color: white;
+  border-radius: 4px;
+  margin: 8px 0;
+}
+
+@keyframes scroll {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.status-indicator {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-left: 8px;
+}
+
+.status-online {
+  background-color: #52c41a;
+}
+
+.status-offline {
+  background-color: #ff4d4f;
+} 
