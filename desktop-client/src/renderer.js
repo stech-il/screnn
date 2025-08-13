@@ -251,8 +251,8 @@ function createManagementPanel() {
         
         <div style="margin-bottom: 15px;">
             <label style="display: block; margin-bottom: 5px; color: #ffd700;">כתובת שרת:</label>
-            <input type="text" id="managementServerUrl" placeholder="http://127.0.0.1:3001" style="width: 100%; padding: 8px; border: 1px solid #ffd700; background: #333; color: white; border-radius: 5px;">
-            <small style="color: #ccc; font-size: 0.8em;">לדוגמה: http://192.168.1.100:3001 או http://127.0.0.1:3001</small>
+            <input type="text" id="managementServerUrl" placeholder="https://screnn.onrender.com" style="width: 100%; padding: 8px; border: 1px solid #ffd700; background: #333; color: white; border-radius: 5px;">
+            <small style="color: #ccc; font-size: 0.8em;">לדוגמה: https://screnn.onrender.com</small>
         </div>
         
         <div style="margin-bottom: 15px;">

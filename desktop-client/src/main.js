@@ -19,7 +19,7 @@ const store = new Store();
 
 // קבלת כתובת שרת מהאחסון או ברירת מחדל
 function getServerUrl() {
-  return store.get('serverUrl') || process.env.SERVER_URL || 'http://127.0.0.1:3001';
+  return store.get('serverUrl') || process.env.SERVER_URL || 'https://screnn.onrender.com';
 }
 
 // עדכון כתובת שרת
