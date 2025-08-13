@@ -38,9 +38,12 @@ api.interceptors.response.use(
         description: 'נדרש להתחבר מחדש',
         placement: 'topRight'
       });
-      // Redirect to login if needed
-      if (window.location.pathname !== '/login') {
-        window.location.href = '/login';
+      // Redirect back to admin base so the app renders the Login screen under /admin
+      if (!window.location.pathname.startsWith('/admin')) {
+        window.location.href = '/admin';
+      } else if (window.location.pathname !== '/admin') {
+        window.history.replaceState({}, '', '/admin');
+        window.location.reload();
       }
     } else if (error.response?.status === 403) {
       notification.error({

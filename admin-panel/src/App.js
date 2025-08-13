@@ -65,7 +65,7 @@ function App() {
     try {
       await api.post('/api/auth/logout');
       setUser(null);
-      navigate('/login');
+      navigate('/');
       notification.success({
         message: 'התנתקות מוצלחת',
         placement: 'topRight'
@@ -86,7 +86,7 @@ function App() {
     } catch (error) {
       if (error.response?.status === 401) {
         setUser(null);
-        navigate('/login');
+        navigate('/');
       } else {
         notification.error({
           message: 'שגיאה',

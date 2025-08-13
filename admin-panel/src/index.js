@@ -7,9 +7,9 @@ import App from './App';
 import './index.css';
 import axios from 'axios';
 
-// Configure axios to include credentials for session management
+// Configure axios to include credentials for session management (baseURL now set via utils/axios)
 axios.defaults.withCredentials = true;
-axios.defaults.baseURL = 'http://localhost:3001';
+delete axios.defaults.baseURL;
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
@@ -25,7 +25,7 @@ root.render(
         }
       }}
     >
-      <BrowserRouter>
+      <BrowserRouter basename="/admin">
         <App />
       </BrowserRouter>
     </ConfigProvider>
