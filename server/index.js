@@ -58,6 +58,7 @@ io.on('connection', (socket) => {
 });
 
 const PORT = process.env.PORT || 3001;
+const DATA_DIR = process.env.DATA_DIR ? path.resolve(process.env.DATA_DIR) : path.join(__dirname);
 
 // Middleware
 app.use(cors({
@@ -92,7 +93,7 @@ app.use((req, res, next) => {
   
   next();
 });
-app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
+app.use('/uploads', express.static(path.join(DATA_DIR, 'uploads'), {
   setHeaders: (res, path) => {
     // הגדרת headers נוספים לקבצי מדיה
     if (path.match(/\.(jpg|jpeg|png|gif|bmp|webp|svg|tiff|ico|mp4|avi|mov|wmv|webm)$/i)) {
@@ -117,7 +118,7 @@ app.get('/client/*', (req, res) => {
 app.use(session({
   store: new SQLiteStore({
     db: 'sessions.db',
-    dir: './',
+    dir: DATA_DIR,
     table: 'sessions'
   }),
   secret: 'your-secret-key-change-this-in-production',
@@ -185,7 +186,7 @@ const requirePermission = (permissionType) => {
 };
 
 // Database setup
-const db = new sqlite3.Database(path.join(__dirname, 'screens.db'));
+const db = new sqlite3.Database(path.join(DATA_DIR, 'screens.db'));
 
 // אופטימיזציות לביצועים
 db.configure('busyTimeout', 30000);
@@ -323,7 +324,7 @@ db.serialize(() => {
 // File upload configuration
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, path.join(__dirname, 'uploads'));
+    cb(null, path.join(DATA_DIR, 'uploads'));
   },
   filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
