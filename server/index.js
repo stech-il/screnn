@@ -104,6 +104,15 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
 app.use('/admin', express.static(path.join(__dirname, '../admin-panel/build')));
 app.use('/client', express.static(path.join(__dirname, '../client-app/build')));
 
+// Serve SPA index files for client-side routing
+app.get('/admin/*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../admin-panel/build/index.html'));
+});
+
+app.get('/client/*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../client-app/build/index.html'));
+});
+
 // Session configuration
 app.use(session({
   store: new SQLiteStore({
