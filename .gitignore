@@ -1,3 +1,29 @@
+# Local SQLite databases
+screens.db
+screens.db-*
+server/screens.db
+server/screens.db-*
+
+# Uploads directory (user files)
+server/uploads/
+
+# Build outputs
+admin-panel/build/
+client-app/build/
+desktop-client/dist/
+
+# Node modules
+node_modules/
+admin-panel/node_modules/
+client-app/node_modules/
+desktop-client/node_modules/
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+*.swp
 # Dependencies
 node_modules/
 */node_modules/

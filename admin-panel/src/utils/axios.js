@@ -3,7 +3,7 @@ import { notification } from 'antd';
 
 // Create axios instance
 const api = axios.create({
-  baseURL: 'http://localhost:3001',
+  baseURL: process.env.REACT_APP_API_BASE_URL || '',
   withCredentials: true,
   timeout: 10000,
   headers: {

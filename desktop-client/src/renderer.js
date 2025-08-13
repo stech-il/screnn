@@ -11,6 +11,18 @@ let contentRotationInterval = null;
 // let rssRotationInterval = null;
 let isOnline = false;
 let screenId = null;
+// RSS ticker RAF state
+let rssTickerRafId = null;
+let rssTickerLastTs = null;
+let rssTickerPosPx = 0;
+let currentRssDirection = 'rtl';
+let currentRssItemsCache = [];
+let rssPixelsPerSecond = 12; // מהירות ברירת מחדל, תותאם לפי רזולוציה
+let rssShowTitleOnly = true; // מצב להצגת כותרת בלבד
+// Messages ticker RAF state
+let messagesRafId = null;
+let messagesLastTs = null;
+let messagesPosPx = 0;
 
 // משתני cursor
 let cursorHideTimeout = null;
@@ -105,6 +117,14 @@ async function initializeApp() {
     
     // הפעלת עדכון זמן
     startTimeUpdates();
+    
+    // האזנה לשינויי גודל חלון כדי להתאים את ה-RSS לרזולוציה
+    window.addEventListener('resize', () => {
+        if (currentRssItemsCache && currentRssItemsCache.length > 0) {
+            console.log('📐 שינוי רזולוציה - התאמת RSS');
+            populateRssTicker(currentRssItemsCache, currentRssDirection || 'ltr');
+        }
+    }, { passive: true });
     
     // בדיקת חיבור ראשונית
     await checkConnection();
@@ -801,17 +821,33 @@ function displayContent(content) {
                 if (item.local_path || item.file_path) {
                     const video = document.createElement('video');
                     video.src = `file://${item.local_path || item.file_path}`;
-                    video.autoplay = true;
+                    video.autoplay = false; // לא להפעיל מראש
                     video.muted = true;
                     video.loop = true;
                     video.controls = false;
+                    video.preload = 'metadata';
                     video.onerror = () => {
                         console.error('Video failed to load:', video.src);
                         contentDiv.innerHTML = '<div class="loading">שגיאה בטעינת וידאו</div>';
                     };
                     video.onloadstart = () => {
-                        console.log('Video started loading:', video.src);
+                        console.log('Video started loading (metadata):', video.src);
                     };
+                    // הפעלה רק כשהפריט הופך ל-active
+                    const observer = new MutationObserver(() => {
+                        const isActive = contentDiv.classList.contains('active');
+                        if (isActive) {
+                            if (video.paused) {
+                                video.play().catch(err => console.warn('Video play blocked:', err));
+                            }
+                        } else {
+                            if (!video.paused) {
+                                video.pause();
+                                video.currentTime = 0;
+                            }
+                        }
+                    });
+                    observer.observe(contentDiv, { attributes: true, attributeFilter: ['class'] });
                     contentDiv.appendChild(video);
                 } else {
                     console.log('No video path provided');
@@ -921,7 +957,7 @@ function displayRSSTickerContent(rssContent) {
 }
 
 // פונקציה חדשה - עדכון RSS מובנה ב-HTML עם תוכן מהשרת
-function populateRssTicker(rssItems) {
+function populateRssTicker(rssItems, direction = 'rtl') {
     if (!rssItems || rssItems.length === 0) {
         console.log('📺 אין RSS מהשרת - משאיר RSS דוגמה מובנה ב-HTML');
         return;
@@ -953,25 +989,68 @@ function populateRssTicker(rssItems) {
             `;
             const title = item.title || 'חדשות';
             const description = item.description || item.content || '';
-            rssItem.innerHTML = `
-                <div style="font-weight: bold !important; margin-bottom: 2px !important;">📰 ${title}</div>
-                <div style="font-size: 0.8em !important; opacity: 0.9 !important;">${description}</div>
-            `;
+            if (rssShowTitleOnly) {
+                rssItem.innerHTML = `<div style="font-weight: bold !important;">📰 ${title}</div>`;
+            } else {
+                rssItem.innerHTML = `
+                    <div style="font-weight: bold !important; margin-bottom: 2px !important;">📰 ${title}</div>
+                    <div style="font-size: 0.8em !important; opacity: 0.9 !important;">${description}</div>
+                `;
+            }
             return rssItem;
         };
 
-        // הוספת פריטי RSS חדשים מהשרת
-        rssItems.forEach((item) => rssTickerContent.appendChild(makeItem(item)));
-        // שכפול התוכן ללולאה אינסופית רציפה בעת גלילה RTL
-        rssItems.forEach((item) => rssTickerContent.appendChild(makeItem(item)));
+        // הוספת פריטי RSS חדשים מהשרת לפי סדר (ראשונות->אחרונות)
+        const ordered = direction === 'ltr' ? [...rssItems] : [...rssItems].reverse();
+        ordered.forEach((item) => rssTickerContent.appendChild(makeItem(item)));
+        // שכפול התוכן ללולאה אינסופית רציפה
+        ordered.forEach((item) => rssTickerContent.appendChild(makeItem(item)));
         
-        // חזרה לאנימציה הקודמת (RTL רציף)
-        rssTickerContent.style.animationName = 'scroll-rtl';
-        rssTickerContent.style.animationDuration = '30s';
-        rssTickerContent.style.animationTimingFunction = 'linear';
-        rssTickerContent.style.animationIterationCount = 'infinite';
+        // שמירת כיוון ו-cache
+        currentRssDirection = direction;
+        currentRssItemsCache = rssItems;
 
-        console.log('✅ RSS מובנה ב-HTML עודכן עם תוכן מהשרת (לופ אינסופי משמאל לימין)');
+        // חישוב משך לפי אורך הטיקר בפיקסלים לקריאות טובה לפי רזולוציה
+        try {
+            const viewportWidth = rssBottom?.clientWidth || document.documentElement.clientWidth || window.innerWidth || 1920;
+            // כפילות פריטים כבר קיימת – למדוד אחרי הוספה כדי לקבל רוחב אמיתי
+            let contentWidth = rssTickerContent.scrollWidth || (viewportWidth * 2);
+        // אם לא נמדד עדיין (early), נסה למדוד שוב אחרי פריים
+        if (!contentWidth || contentWidth <= 0) {
+            requestAnimationFrame(() => {
+                    const vw = rssBottom?.clientWidth || document.documentElement.clientWidth || window.innerWidth || 1920;
+                    const cw = rssTickerContent.scrollWidth || (vw * 2);
+                    // עדכון משתנים גלובליים לתחילת ריצה מדויקת
+                    rssTickerPosPx = direction === 'ltr' ? -cw : vw;
+            });
+        }
+            // אם אין רוחב (display:none/חסר), ודא שהאלמנט גלוי לחישוב
+            if (!contentWidth || contentWidth <= 0) {
+                rssBottom.style.display = 'block';
+                rssTickerContent.style.display = 'flex';
+                contentWidth = rssTickerContent.scrollWidth || (viewportWidth * 2);
+            }
+            const distancePx = contentWidth + viewportWidth; // כניסה מהצד עד יציאה מהצד השני
+            // מהירות מותאמת לפי רוחב: מסכים רחבים יותר = px/s מעט גבוה יותר
+            const basePps = 12;
+            rssPixelsPerSecond = Math.round(basePps * Math.min(1.6, Math.max(1.0, viewportWidth / 1920)));
+            const durationSeconds = Math.max(60, Math.round(distancePx / rssPixelsPerSecond));
+            // הפעלה נקייה של האנימציה (איפוס + הפעלה מחדש) למניעת מצבי קצה
+            rssTickerContent.style.animation = 'none';
+            // טריק לרענן חישובי layout כדי לאתחל את האנימציה
+            // eslint-disable-next-line no-unused-expressions
+            rssTickerContent.offsetWidth;
+            const animName = direction === 'ltr' ? 'scroll-ltr' : 'scroll-rtl';
+            rssTickerContent.style.animation = `${animName} ${durationSeconds}s linear infinite`;
+            console.log(`🕒 RSS dynamic duration set to ${durationSeconds}s (${animName}) distance=${distancePx}px, pps=${rssPixelsPerSecond}, vw=${viewportWidth}`);
+        } catch (e) {
+            // גיבוי אם משהו נכשל
+            const animName = direction === 'ltr' ? 'scroll-ltr' : 'scroll-rtl';
+            rssTickerContent.style.animation = `${animName} 120s linear infinite`;
+            console.log('🕒 RSS fallback duration set to 120s');
+        }
+
+        console.log('✅ RSS מובנה ב-HTML עודכן עם תוכן מהשרת (לולאה אינסופית)');
     } else {
         console.error('❌ לא נמצא אלמנט rssTickerContent');
     }
@@ -1018,21 +1097,46 @@ function displayRunningMessagesSidebar(messages) {
         return;
     }
     
-    // יצירת טקסט מכל ההודעות
-    const allMessages = activeMessages.map(msg => msg.content).join('\n\n');
+    // יצירת טקסט מכל ההודעות עם שורה ריקה בין הודעות
+    const allMessages = activeMessages.map(msg => (msg.content || '').trim()).join('\n\n');
     console.log('Combined messages text:', allMessages);
     
     if (messageScroller) {
         messageScroller.textContent = allMessages;
         
-        // הגדרת מהירות אנימציה - מעט מהיר יותר כברירת מחדל
-        const speed = activeMessages[0]?.speed || 18;
-        // נוודא שהאנימציה הנכונה מוגדרת (scroll-vertical-360)
-        messageScroller.style.animationName = 'scroll-vertical-360';
-        messageScroller.style.animationDuration = `${speed}s`;
-        messageScroller.style.animationTimingFunction = 'linear';
-        messageScroller.style.animationIterationCount = 'infinite';
-        console.log('Set animation to scroll-vertical-360 with duration:', speed + 's');
+        // לולאה אינסופית חלקה ב-RAF (מניעת כפילות/קפיצות)
+        const base = activeMessages[0]?.speed || 25;
+        const speed = Math.max(5, base - 10); // להאיץ בעוד 10 שניות
+
+        // מדידת גובה תוכן והוספת ריווח בין הודעות
+        messageScroller.style.transform = 'translateY(0)';
+        const withSpacing = allMessages.replace(/\n\n/g, "\n\n\n");
+        messageScroller.textContent = withSpacing;
+        // ודא מדידה נכונה של קונטיינר התוכן הצדדי
+        const messagesContainer = document.querySelector('#runningMessagesSidebar .running-messages-content') || runningMessagesSidebar;
+        const viewportHeight = messagesContainer.clientHeight || runningMessagesSidebar.clientHeight || 400;
+        const contentHeight = messageScroller.scrollHeight || viewportHeight * 2;
+        const pixelsPerSecond = Math.max(40, Math.round((contentHeight + viewportHeight) / speed));
+        // איפוס מצב
+        if (messagesRafId) cancelAnimationFrame(messagesRafId);
+        messagesLastTs = null;
+        messagesPosPx = viewportHeight;
+        
+        const step = (ts) => {
+            if (messagesLastTs == null) messagesLastTs = ts;
+            const dt = (ts - messagesLastTs) / 1000;
+            messagesLastTs = ts;
+            messagesPosPx -= pixelsPerSecond * dt;
+            // כשעבר לגמרי למעלה, חוזרים להתחלה (מתחת)
+            if (messagesPosPx <= -contentHeight) {
+                // כניסה מחדש מתחת לתחתית הקונטיינר
+                messagesPosPx = viewportHeight;
+            }
+            messageScroller.style.transform = `translateY(${messagesPosPx}px)`;
+            messagesRafId = requestAnimationFrame(step);
+        };
+        messagesRafId = requestAnimationFrame(step);
+        console.log('Messages RAF loop started at', { pixelsPerSecond, viewportHeight, contentHeight });
     } else {
         console.error('messageScroller element not found');
     }
