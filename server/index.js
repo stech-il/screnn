@@ -1356,6 +1356,51 @@ app.get('/api/admin/users', requireAuth, (req, res) => {
   });
 });
 
+// Create user (admin only)
+app.post('/api/admin/users', requireAuth, async (req, res) => {
+  logInfo('👤 בקשת יצירת משתמש חדש');
+  const { username, password, full_name, email, role = 'user', is_active = 1 } = req.body;
+
+  // Check if user is admin
+  db.get('SELECT role FROM users WHERE id = ?', [req.session.userId], async (err, user) => {
+    if (err) {
+      logError(err, 'בדיקת הרשאות יצירת משתמש');
+      return res.status(500).json({ error: 'שגיאה בבדיקת הרשאות' });
+    }
+
+    if (!user || (user.role !== 'admin' && user.role !== 'super_admin')) {
+      return res.status(403).json({ error: 'אין לך הרשאה ליצור משתמשים' });
+    }
+
+    if (!username || !password) {
+      return res.status(400).json({ error: 'שם משתמש וסיסמה נדרשים' });
+    }
+
+    try {
+      const hashed = await bcrypt.hash(password, 10);
+      const newUserId = uuidv4();
+      db.run(
+        'INSERT INTO users (id, username, password, full_name, email, role, is_active) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [newUserId, username, hashed, full_name || null, email || null, role, is_active ? 1 : 0],
+        function(insertErr) {
+          if (insertErr) {
+            if (insertErr.message && insertErr.message.includes('UNIQUE')) {
+              return res.status(409).json({ error: 'שם המשתמש כבר קיים' });
+            }
+            logError(insertErr, 'יצירת משתמש חדש');
+            return res.status(500).json({ error: 'שגיאה ביצירת משתמש' });
+          }
+          logSuccess(`משתמש חדש נוצר: ${username} (${newUserId})`);
+          res.json({ id: newUserId, message: 'משתמש נוצר בהצלחה' });
+        }
+      );
+    } catch (hashErr) {
+      logError(hashErr, 'האשת סיסמה');
+      return res.status(500).json({ error: 'שגיאה בעיבוד הסיסמה' });
+    }
+  });
+});
+
 app.delete('/api/admin/users/:userId', requireAuth, (req, res) => {
   const { userId } = req.params;
   logInfo(`🗑️ בקשת מחיקת משתמש: ${userId}`);
@@ -1397,7 +1442,7 @@ app.delete('/api/admin/users/:userId', requireAuth, (req, res) => {
 
 app.put('/api/admin/users/:userId', requireAuth, (req, res) => {
   const { userId } = req.params;
-  const { username, full_name, email, role, is_active } = req.body;
+  const { username, full_name, email, role, is_active, password } = req.body;
   logInfo(`✏️ בקשת עדכון משתמש: ${userId}`);
   
   // Check if user is admin
@@ -1412,24 +1457,40 @@ app.put('/api/admin/users/:userId', requireAuth, (req, res) => {
       return res.status(403).json({ error: 'אין לך הרשאה לעדכן משתמשים' });
     }
     
-    db.run(
-      'UPDATE users SET username = ?, full_name = ?, email = ?, role = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-      [username, full_name, email, role, is_active, userId],
-      function(err) {
+    const doUpdate = (passwordHash) => {
+      const fields = ['username = ?', 'full_name = ?', 'email = ?', 'role = ?', 'is_active = ?', 'updated_at = CURRENT_TIMESTAMP'];
+      const values = [username, full_name, email, role, is_active];
+      if (passwordHash) {
+        fields.unshift('password = ?');
+        values.unshift(passwordHash);
+      }
+      values.push(userId);
+      const sql = `UPDATE users SET ${fields.join(', ')} WHERE id = ?`;
+      db.run(sql, values, function(err) {
         if (err) {
+          if (err.message && err.message.includes('UNIQUE')) {
+            return res.status(409).json({ error: 'שם המשתמש כבר קיים' });
+          }
           logError(err, 'עדכון משתמש');
           return res.status(500).json({ error: 'שגיאה בעדכון משתמש' });
         }
-        
         if (this.changes === 0) {
           logError(`משתמש לא נמצא לעדכון: ${userId}`, 'update-user');
           return res.status(404).json({ error: 'משתמש לא נמצא' });
         }
-        
         logSuccess(`משתמש עודכן בהצלחה: ${userId}`);
         res.json({ message: 'משתמש עודכן בהצלחה' });
-      }
-    );
+      });
+    };
+
+    if (password && String(password).trim().length > 0) {
+      bcrypt.hash(password, 10).then(doUpdate).catch(err => {
+        logError(err, 'האשת סיסמה בעדכון');
+        res.status(500).json({ error: 'שגיאה בעיבוד הסיסמה' });
+      });
+    } else {
+      doUpdate();
+    }
   });
 });
 

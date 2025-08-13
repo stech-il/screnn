@@ -102,7 +102,7 @@ const UserManagement = ({ socket }) => {
         });
         message.success('משתמש עודכן בהצלחה');
       } else {
-        await axios.post('/api/auth/register', {
+        await axios.post('/api/admin/users', {
           ...values,
           is_active: values.is_active ? 1 : 0
         });
