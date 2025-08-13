@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Form, Input, Button, Card, Typography, message, Space } from 'antd';
 import { UserOutlined, LockOutlined, LoginOutlined } from '@ant-design/icons';
-import axios from 'axios';
+import api from '../utils/axios';
 
 const { Title, Text } = Typography;
 
@@ -11,14 +11,19 @@ const Login = ({ onLoginSuccess }) => {
   const onFinish = async (values) => {
     setLoading(true);
     try {
-      const response = await axios.post('/api/auth/login', values);
+      console.log('🔐 מנסה להתחבר עם:', values.username);
+      const response = await api.post('/api/auth/login', values);
+      console.log('✅ התחברות מוצלחת:', response.data);
       message.success('התחברות מוצלחת!');
       onLoginSuccess(response.data.user);
     } catch (error) {
+      console.error('❌ שגיאה בהתחברות:', error);
       if (error.response?.data?.error) {
         message.error(error.response.data.error);
+      } else if (error.code === 'ECONNREFUSED') {
+        message.error('לא ניתן להתחבר לשרת. ודא שהשרת רץ.');
       } else {
-        message.error('שגיאה בהתחברות');
+        message.error('שגיאה בהתחברות - בדוק את החיבור לשרת');
       }
     } finally {
       setLoading(false);

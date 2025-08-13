@@ -14,13 +14,15 @@ import {
   TeamOutlined,
   KeyOutlined
 } from '@ant-design/icons';
-import axios from 'axios';
+import api from './utils/axios';
+
 import ScreensList from './components/ScreensList';
 import ScreenDetail from './components/ScreenDetail';
 import CreateScreen from './components/CreateScreen';
 import Login from './components/Login';
 import UserManagement from './components/UserManagement';
 import PermissionsManager from './components/PermissionsManager';
+import FunctionPermissionsManager from './components/FunctionPermissionsManager';
 import socket from './components/socket';
 
 const { Header, Sider, Content } = Layout;
@@ -42,9 +44,12 @@ function App() {
 
   const checkAuth = async () => {
     try {
-      const response = await axios.get('/api/auth/me');
+      console.log('🔍 בודק אימות משתמש...');
+      const response = await api.get('/api/auth/me');
+      console.log('✅ משתמש מחובר:', response.data.user);
       setUser(response.data.user);
     } catch (error) {
+      console.log('❌ משתמש לא מחובר:', error.message);
       setUser(null);
     } finally {
       setAuthLoading(false);
@@ -58,7 +63,7 @@ function App() {
 
   const handleLogout = async () => {
     try {
-      await axios.post('/api/auth/logout');
+      await api.post('/api/auth/logout');
       setUser(null);
       navigate('/login');
       notification.success({
@@ -76,7 +81,7 @@ function App() {
   const loadScreens = async () => {
     try {
       setLoading(true);
-      const response = await axios.get('/api/user/screens');
+      const response = await api.get('/api/user/screens');
       setScreens(response.data);
     } catch (error) {
       if (error.response?.status === 401) {
@@ -99,6 +104,72 @@ function App() {
       loadScreens();
     }
   }, [user]);
+
+  // Socket listeners לעדכון בזמן אמת
+  useEffect(() => {
+    if (!socket || !user) return;
+
+    console.log('🔌 הגדרת Socket listeners בזמן אמת...');
+
+    // עדכון סטטוס מסכים בזמן אמת (last_seen)
+    socket.on('screen_status_updated', (data) => {
+      console.log('📡 screen_status_updated received:', data);
+      setScreens(prevScreens => 
+        prevScreens.map(screen => 
+          screen.id === data.id 
+            ? { ...screen, last_seen: data.last_seen }
+            : screen
+        )
+      );
+    });
+
+    // עדכון מסכים שנמחקו
+    socket.on('screen_deleted', (data) => {
+      console.log('📡 screen_deleted received:', data);
+      setScreens(prevScreens => 
+        prevScreens.filter(screen => screen.id !== data.id)
+      );
+    });
+
+    // עדכון שם מסך
+    socket.on('screen_name_updated', (data) => {
+      console.log('📡 screen_name_updated received:', data);
+      setScreens(prevScreens => 
+        prevScreens.map(screen => 
+          screen.id === data.id 
+            ? { ...screen, name: data.name }
+            : screen
+        )
+      );
+    });
+
+    // עדכון לוגו מסך
+    socket.on('screen_logo_updated', (data) => {
+      console.log('📡 screen_logo_updated received:', data);
+      setScreens(prevScreens => 
+        prevScreens.map(screen => 
+          screen.id === data.id 
+            ? { ...screen, logo_url: data.logo_url }
+            : screen
+        )
+      );
+    });
+
+    // עדכון כללי של תוכן
+    socket.on('content_updated', () => {
+      console.log('📡 content_updated received - רענון מסכים');
+      loadScreens(); // רק למקרים כלליים
+    });
+
+    return () => {
+      console.log('🔌 ניקוי Socket listeners...');
+      socket.off('screen_status_updated');
+      socket.off('screen_deleted');
+      socket.off('screen_name_updated');
+      socket.off('screen_logo_updated');
+      socket.off('content_updated');
+    };
+  }, [socket, user]);
 
   // Show loading while checking authentication
   if (authLoading) {
@@ -156,7 +227,13 @@ function App() {
     menuItems.push({
       key: '/permissions',
       icon: <KeyOutlined />,
-      label: 'ניהול הרשאות'
+      label: 'הרשאות מסכים'
+    });
+    
+    menuItems.push({
+      key: '/function-permissions',
+      icon: <SettingOutlined />,
+      label: 'הרשאות פונקציות'
     });
   }
 
@@ -297,6 +374,16 @@ function App() {
               element={
                 (user.role === 'admin' || user.role === 'super_admin') ? (
                   <PermissionsManager socket={socket} />
+                ) : (
+                  <div>אין לך הרשאה לגשת לעמוד זה</div>
+                )
+              } 
+            />
+            <Route 
+              path="/function-permissions" 
+              element={
+                (user.role === 'admin' || user.role === 'super_admin') ? (
+                  <FunctionPermissionsManager socket={socket} />
                 ) : (
                   <div>אין לך הרשאה לגשת לעמוד זה</div>
                 )

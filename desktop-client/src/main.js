@@ -453,6 +453,18 @@ ipcMain.handle('get-local-data', async () => {
   return await loadLocalData();
 });
 
+// הוסר: clear-local-data - כדי לא למחוק נתונים מקומיים בלי חיבור
+
+ipcMain.handle('sync-with-server', async () => {
+  try {
+    await syncWithServer();
+    return true;
+  } catch (error) {
+    console.error('❌ שגיאה בסנכרון עם השרת:', error);
+    return false;
+  }
+});
+
 ipcMain.handle('check-connection', async () => {
   return await checkServerConnection();
 });
@@ -520,7 +532,7 @@ app.whenReady().then(() => {
     }
   });
 
-  // סנכרון תקופתי (כל 30 שניות)
+  // סנכרון תקופתי חכם (כל 60 שניות) - פחות אגרסיבי
   syncInterval = setInterval(async () => {
     const wasOnline = isOnline;
     await checkServerConnection();
@@ -528,13 +540,17 @@ app.whenReady().then(() => {
     if (isOnline && screenId) {
       if (!wasOnline) {
         console.log('חיבור לשרת חזר - מסנכרן נתונים');
+        await syncWithServer();
+      } else {
+        // סנכרון רגיל - רק אם יש שינויים
+        console.log('🔄 בדיקת עדכונים תקופתית...');
+        await syncWithServer();
       }
-      await syncWithServer();
     }
     
     // עדכון סטטוס חיבור
     mainWindow.webContents.send('connection-status', isOnline);
-  }, 30 * 1000); // 30 שניות
+  }, 60 * 1000); // 60 שניות במקום 30
 
   // בדיקת חיבור כל 15 שניות
   setInterval(checkServerConnection, 15 * 1000);

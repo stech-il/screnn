@@ -351,7 +351,7 @@
             font-size: 1.2em;
             font-weight: bold;
             color: #ffd700;
-            animation: scroll-vertical 15s linear infinite;
+            animation: scroll-vertical-360 18s linear infinite;
             text-align: center;
             line-height: 1.6;
             will-change: transform;
@@ -364,11 +364,14 @@
             bottom: 0;
             right: 0;
             left: 0;
-            height: 120px;
-            background: rgba(0, 0, 0, 0.9);
-            border-top: 3px solid #ffd700;
+            height: 80px;
+            background: rgba(0, 0, 0, 0.95);
+            border-top: 2px solid #ffd700;
             overflow: hidden;
-            z-index: 100;
+            z-index: 999999;
+            display: block !important;
+            visibility: visible !important;
+            opacity: 1 !important;
         }
 
         .rss-ticker {
@@ -382,10 +385,13 @@
             display: flex;
             /* Animation will be set by JavaScript */
             white-space: nowrap;
-            font-size: 1.1em;
+            font-size: 0.9em;
             color: #ffd700;
             will-change: transform;
             backface-visibility: hidden;
+            height: 80px;
+            align-items: center;
+            line-height: 1.2;
         }
         
         @keyframes rssScroll {
@@ -393,8 +399,34 @@
                 transform: translateX(-100%);
             }
             100% {
-                transform: translateX(100%);
+                transform: translateX(100vw);
             }
+        }
+        
+        /* אנימציה איטית לקריאה נוחה - חדשות נגללות - לא צריך כי RSS מובנה ב-HTML! */
+        /* @keyframes rssScrollSlow {
+            0% {
+                transform: translateX(-100%);
+            }
+            100% {
+                transform: translateX(-100%);
+            }
+        } */
+        
+        /* אנימציה חלקה יותר לחדשות נגללות - לא צריך כי RSS מובנה ב-HTML! */
+        /* @keyframes rssScrollSmooth {
+            0% {
+                transform: translateX(100vw);
+            }
+            100% {
+                transform: translateX(-100%);
+            }
+        } */
+        
+        /* אנימציית לולאה חלקה משמאל לימין (דורש שכפול תוכן) */
+        @keyframes tickerLTR {
+            0% { transform: translateX(-50%); }
+            100% { transform: translateX(0); }
         }
 
         /* אנימציה חלקה יותר ל-RSS */
@@ -408,12 +440,17 @@
         }
 
         .rss-ticker-item {
-            margin-left: 80px;
-            padding: 10px 20px;
+            margin-left: 60px;
+            padding: 8px 15px;
             background: rgba(255, 215, 0, 0.1);
-            border-radius: 10px;
+            border-radius: 8px;
             border: 1px solid #ffd700;
             white-space: nowrap;
+            font-size: 0.85em;
+            max-height: 60px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
         }
 
         .rss-ticker-item-title {
@@ -510,12 +547,12 @@
             }
         }
 
-        @keyframes scroll-vertical {
+        @keyframes scroll-vertical-360 {
             0% {
-                transform: translateY(100%);
+                transform: translateY(0);
             }
             100% {
-                transform: translateY(-100%);
+                transform: translateY(360px);
             }
         }
 
@@ -645,11 +682,39 @@
             </div>
         </aside>
 
-        <!-- RSS רץ למטה -->
-        <div id="rssBottom" class="rss-bottom" style="display: none;">
-            <div class="rss-ticker">
-                <div class="rss-ticker-content" id="rssTickerContent">
-                    <div class="loading">טוען חדשות...</div>
+        <!-- RSS חדשות נגללות - מוצג מיד! -->
+        <div id="rssBottom" class="rss-bottom" style="display: block !important; visibility: visible !important; position: fixed !important; bottom: 0 !important; left: 0 !important; right: 0 !important; height: 80px !important; background: rgba(0, 0, 0, 0.95) !important; border-top: 2px solid #ffd700 !important; overflow: hidden !important; z-index: 999999 !important;">
+            <div class="rss-ticker" style="height: 100% !important; display: flex !important; align-items: center !important; padding: 0 20px !important;">
+                <div class="rss-ticker-content" id="rssTickerContent" style="display: flex !important; white-space: nowrap !important; font-size: 1.05em !important; color: #ffd700 !important; height: 100% !important; width: max-content !important; align-items: center !important; justify-content: flex-start !important; padding: 0 20px !important; box-sizing: border-box !important; min-height: 80px !important; line-height: 1.2 !important; animation: scroll-rtl 30s linear infinite !important;">
+                    <!-- חדשות נגללות אמיתיות - מהירות בינונית -->
+                    <div class="rss-ticker-item" style="margin-left: 60px !important; padding: 8px 15px !important; background: rgba(255, 215, 0, 0.1) !important; border-radius: 8px !important; border: 1px solid #ffd700 !important; white-space: nowrap !important; flex-shrink: 0 !important; display: flex !important; flex-direction: column !important; justify-content: center !important; max-height: 60px !important; font-size: 0.95em !important; line-height: 1.2 !important;">
+                        <div style="font-weight: bold !important; margin-bottom: 2px !important;">🚀 מערכת Digitlex פועלת מיד!</div>
+                        <div style="font-size: 0.8em !important; opacity: 0.9 !important;">RSS חדשות נגללות ברגע הפתיחה</div>
+                    </div>
+                    <div class="rss-ticker-item" style="margin-left: 60px !important; padding: 8px 15px !important; background: rgba(255, 215, 0, 0.1) !important; border-radius: 8px !important; border: 1px solid #ffd700 !important; white-space: nowrap !important; flex-shrink: 0 !important; display: flex !important; flex-direction: column !important; justify-content: center !important; max-height: 60px !important; font-size: 0.95em !important; line-height: 1.2 !important;">
+                        <div style="font-weight: bold !important; margin-bottom: 2px !important;">📺 מערכת דיגיטלית מתקדמת</div>
+                        <div style="font-size: 0.8em !important; opacity: 0.9 !important;">פתרון חכם לתצוגה דיגיטלית מודרנית</div>
+                    </div>
+                    <div class="rss-ticker-item" style="margin-left: 60px !important; padding: 8px 15px !important; background: rgba(255, 215, 0, 0.1) !important; border-radius: 8px !important; border: 1px solid #ffd700 !important; white-space: nowrap !important; flex-shrink: 0 !important; display: flex !important; flex-direction: column !important; justify-content: center !important; max-height: 60px !important; font-size: 0.95em !important; line-height: 1.2 !important;">
+                        <div style="font-weight: bold !important; margin-bottom: 2px !important;">⚡ חדשות נגללות בזמן אמת</div>
+                        <div style="font-size: 0.8em !important; opacity: 0.9 !important;">עדכונים מתמידים ללא הפסקה</div>
+                    </div>
+                    <div class="rss-ticker-item" style="margin-left: 60px !important; padding: 8px 15px !important; background: rgba(255, 215, 0, 0.1) !important; border-radius: 8px !important; border: 1px solid #ffd700 !important; white-space: nowrap !important; flex-shrink: 0 !important; display: flex !important; flex-direction: column !important; justify-content: center !important; max-height: 60px !important; font-size: 0.95em !important; line-height: 1.2 !important;">
+                        <div style="font-weight: bold !important; margin-bottom: 2px !important;">🌐 מערכת מחוברת לשרת</div>
+                        <div style="font-size: 0.8em !important; opacity: 0.9 !important;">סנכרון אוטומטי עם השרת המרכזי</div>
+                    </div>
+                    <div class="rss-ticker-item" style="margin-left: 60px !important; padding: 8px 15px !important; background: rgba(255, 215, 0, 0.1) !important; border-radius: 8px !important; border: 1px solid #ffd700 !important; white-space: nowrap !important; flex-shrink: 0 !important; display: flex !important; flex-direction: column !important; justify-content: center !important; max-height: 60px !important; font-size: 0.95em !important; line-height: 1.2 !important;">
+                        <div style="font-weight: bold !important; margin-bottom: 2px !important;">📱 ממשק משתמש מתקדם</div>
+                        <div style="font-size: 0.8em !important; opacity: 0.9 !important;">עיצוב מודרני ונוח לשימוש</div>
+                    </div>
+                    <div class="rss-ticker-item" style="margin-left: 60px !important; padding: 8px 15px !important; background: rgba(255, 215, 0, 0.1) !important; border-radius: 8px !important; border: 1px solid #ffd700 !important; white-space: nowrap !important; flex-shrink: 0 !important; display: flex !important; flex-direction: column !important; justify-content: center !important; max-height: 60px !important; font-size: 0.95em !important; line-height: 1.2 !important;">
+                        <div style="font-weight: bold !important; margin-bottom: 2px !important;">🔒 אבטחה מתקדמת</div>
+                        <div style="font-size: 0.8em !important; opacity: 0.9 !important;">הגנה על נתונים ופרטיות</div>
+                    </div>
+                    <div class="rss-ticker-item" style="margin-left: 60px !important; padding: 8px 15px !important; background: rgba(255, 215, 0, 0.1) !important; border-radius: 8px !important; border: 1px solid #ffd700 !important; white-space: nowrap !important; flex-shrink: 0 !important; display: flex !important; flex-direction: column !important; justify-content: center !important; max-height: 60px !important; font-size: 0.85em !important; line-height: 1.2 !important;">
+                        <div style="font-weight: bold !important; margin-bottom: 2px !important;">⚙️ תמיכה טכנית 24/7</div>
+                        <div style="font-size: 0.8em !important; opacity: 0.9 !important;">צוות מומחים זמין תמיד</div>
+                    </div>
                 </div>
             </div>
         </div>

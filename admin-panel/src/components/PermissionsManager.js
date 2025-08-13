@@ -1,80 +1,102 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Table, 
-  Button, 
-  Modal, 
-  Form, 
-  Select, 
-  Space, 
-  message, 
-  Popconfirm,
-  Typography,
+import {
   Card,
+  Table,
+  Button,
+  Form,
+  Select,
+  Typography,
+  Space,
+  message,
+  Modal,
   Tag,
-  Divider
+  Popconfirm,
+  Row,
+  Col,
+  Alert
 } from 'antd';
-import { 
-  PlusOutlined, 
-  EditOutlined, 
-  DeleteOutlined, 
+import {
   UserOutlined,
   DesktopOutlined,
-  KeyOutlined
+  LockOutlined,
+  UnlockOutlined,
+  PlusOutlined,
+  DeleteOutlined,
+  EditOutlined
 } from '@ant-design/icons';
-import axios from 'axios';
+import api from '../utils/axios';
 
-const { Title } = Typography;
+const { Title, Text } = Typography;
 const { Option } = Select;
 
-const PermissionsManager = ({ socket }) => {
+const PermissionsManager = () => {
   const [permissions, setPermissions] = useState([]);
   const [users, setUsers] = useState([]);
   const [screens, setScreens] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
   const [editingPermission, setEditingPermission] = useState(null);
   const [form] = Form.useForm();
 
+  const permissionTypes = [
+    { value: 'read', label: 'קריאה', color: 'green' },
+    { value: 'write', label: 'כתיבה', color: 'blue' },
+    { value: 'admin', label: 'ניהול מלא', color: 'red' }
+  ];
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
   const loadData = async () => {
-    setLoading(true);
     try {
+      setLoading(true);
       const [permissionsRes, usersRes, screensRes] = await Promise.all([
-        axios.get('/api/admin/permissions'),
-        axios.get('/api/admin/users'),
-        axios.get('/api/user/screens')
+        api.get('/api/admin/permissions'),
+        api.get('/api/admin/users'),
+        api.get('/api/user/screens')
       ]);
       
       setPermissions(permissionsRes.data);
       setUsers(usersRes.data);
       setScreens(screensRes.data);
     } catch (error) {
-      message.error('שגיאה בטעינת נתונים');
+      message.error('שגיאה בטעינת נתונים: ' + (error.response?.data?.error || error.message));
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  const handleSubmit = async (values) => {
+    try {
+      if (editingPermission) {
+        await api.put(`/api/admin/permissions/${editingPermission.id}`, values);
+        message.success('ההרשאה עודכנה בהצלחה');
+      } else {
+        await api.post('/api/admin/permissions', values);
+        message.success('ההרשאה נוספה בהצלחה');
+      }
 
-  useEffect(() => {
-    if (!socket) return;
-    socket.on('permissions_updated', () => {
+      setModalVisible(false);
+      setEditingPermission(null);
+      form.resetFields();
       loadData();
-    });
-    return () => {
-      socket.off('permissions_updated');
-    };
-  }, [socket]);
-
-  const handleAddPermission = () => {
-    setEditingPermission(null);
-    form.resetFields();
-    setModalVisible(true);
+    } catch (error) {
+      message.error('שגיאה בשמירת ההרשאה: ' + (error.response?.data?.error || error.message));
+    }
   };
 
-  const handleEditPermission = (permission) => {
+  const handleDelete = async (permissionId) => {
+    try {
+      await api.delete(`/api/admin/permissions/${permissionId}`);
+      message.success('ההרשאה נמחקה בהצלחה');
+      loadData();
+    } catch (error) {
+      message.error('שגיאה במחיקת ההרשאה: ' + (error.response?.data?.error || error.message));
+    }
+  };
+
+  const handleEdit = (permission) => {
     setEditingPermission(permission);
     form.setFieldsValue({
       user_id: permission.user_id,
@@ -84,106 +106,59 @@ const PermissionsManager = ({ socket }) => {
     setModalVisible(true);
   };
 
-  const handleDeletePermission = async (permissionId) => {
-    try {
-      await axios.delete(`/api/admin/permissions/${permissionId}`);
-      message.success('הרשאה נמחקה בהצלחה');
-      loadData();
-    } catch (error) {
-      if (error.response?.data?.error) {
-        message.error(error.response.data.error);
-      } else {
-        message.error('שגיאה במחיקת הרשאה');
-      }
-    }
-  };
-
-  const handleSubmit = async (values) => {
-    try {
-      if (editingPermission) {
-        await axios.put(`/api/admin/permissions/${editingPermission.id}`, {
-          permission_type: values.permission_type
-        });
-        message.success('הרשאה עודכנה בהצלחה');
-      } else {
-        await axios.post('/api/admin/permissions', values);
-        message.success('הרשאה נוצרה בהצלחה');
-      }
-      setModalVisible(false);
-      loadData();
-    } catch (error) {
-      if (error.response?.data?.error) {
-        message.error(error.response.data.error);
-      } else {
-        message.error('שגיאה בשמירת הרשאה');
-      }
-    }
-  };
-
-  const getPermissionColor = (type) => {
-    switch (type) {
-      case 'admin': return 'red';
-      case 'write': return 'orange';
-      case 'read': return 'green';
-      default: return 'blue';
-    }
-  };
-
-  const getPermissionText = (type) => {
-    switch (type) {
-      case 'admin': return 'מנהל';
-      case 'write': return 'כתיבה';
-      case 'read': return 'קריאה';
-      default: return type;
-    }
+  const getPermissionTag = (type) => {
+    const permType = permissionTypes.find(p => p.value === type);
+    return (
+      <Tag color={permType?.color || 'default'}>
+        {permType?.label || type}
+      </Tag>
+    );
   };
 
   const columns = [
     {
       title: 'משתמש',
+      dataIndex: 'user_username',
       key: 'user',
-      render: (_, record) => (
+      render: (username, record) => (
         <Space>
           <UserOutlined />
           <div>
-            <div>{record.user_full_name || record.user_username}</div>
-            <small style={{ color: '#666' }}>{record.user_username}</small>
+            <div style={{ fontWeight: 'bold' }}>{username}</div>
+            <Text type="secondary" style={{ fontSize: '12px' }}>
+              {record.user_full_name}
+            </Text>
           </div>
         </Space>
-      )
+      ),
     },
     {
       title: 'מסך',
+      dataIndex: 'screen_name',
       key: 'screen',
-      render: (_, record) => (
+      render: (screenName, record) => (
         <Space>
           <DesktopOutlined />
-          {record.screen_name}
+          <div>
+            <div style={{ fontWeight: 'bold' }}>{screenName}</div>
+            <Text type="secondary" style={{ fontSize: '12px' }}>
+              {record.screen_id}
+            </Text>
+          </div>
         </Space>
-      )
+      ),
     },
     {
-      title: 'הרשאה',
+      title: 'סוג הרשאה',
       dataIndex: 'permission_type',
       key: 'permission_type',
-      render: (type) => (
-        <Tag color={getPermissionColor(type)}>
-          {getPermissionText(type)}
-        </Tag>
-      )
+      render: (type) => getPermissionTag(type),
     },
     {
-      title: 'ניתן על ידי',
-      key: 'granted_by',
-      render: (_, record) => (
-        <span>{record.granted_by_username || '-'}</span>
-      )
-    },
-    {
-      title: 'תאריך מתן הרשאה',
-      dataIndex: 'granted_at',
-      key: 'granted_at',
-      render: (date) => new Date(date).toLocaleDateString('he-IL')
+      title: 'נוצר בתאריך',
+      dataIndex: 'created_at',
+      key: 'created_at',
+      render: (date) => new Date(date).toLocaleDateString('he-IL'),
     },
     {
       title: 'פעולות',
@@ -191,151 +166,184 @@ const PermissionsManager = ({ socket }) => {
       render: (_, record) => (
         <Space>
           <Button
-            type="primary"
+            type="text"
             icon={<EditOutlined />}
+            onClick={() => handleEdit(record)}
             size="small"
-            onClick={() => handleEditPermission(record)}
-          >
-            ערוך
-          </Button>
+          />
           <Popconfirm
             title="האם אתה בטוח שברצונך למחוק הרשאה זו?"
-            onConfirm={() => handleDeletePermission(record.id)}
+            onConfirm={() => handleDelete(record.id)}
             okText="כן"
             cancelText="לא"
           >
             <Button
-              type="primary"
+              type="text"
               danger
               icon={<DeleteOutlined />}
               size="small"
-            >
-              מחק
-            </Button>
+            />
           </Popconfirm>
         </Space>
-      )
-    }
+      ),
+    },
   ];
 
   return (
-    <div style={{ padding: '24px' }}>
-      <Card>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-          <Title level={3} style={{ margin: 0 }}>
-            <KeyOutlined /> ניהול הרשאות משתמשים
+    <div>
+      <Row justify="space-between" align="middle" style={{ marginBottom: 24 }}>
+        <Col>
+          <Title level={2}>
+            <LockOutlined style={{ marginLeft: 8 }} />
+            ניהול הרשאות מסכים
           </Title>
+          <Text type="secondary">
+            ניהול גישה של משתמשים למסכים שונים במערכת
+          </Text>
+        </Col>
+        <Col>
           <Button
             type="primary"
             icon={<PlusOutlined />}
-            onClick={handleAddPermission}
-            size="large"
+            onClick={() => {
+              setEditingPermission(null);
+              form.resetFields();
+              setModalVisible(true);
+            }}
           >
-            הוסף הרשאה
+            הוסף הרשאה חדשה
           </Button>
-        </div>
+        </Col>
+      </Row>
 
-        <div style={{ marginBottom: '16px' }}>
-          <Space>
-            <Tag color="green">קריאה - צפייה בתוכן</Tag>
-            <Tag color="orange">כתיבה - עריכת תוכן</Tag>
-            <Tag color="red">מנהל - שליטה מלאה</Tag>
-          </Space>
-        </div>
+      <Alert
+        message="מידע חשוב"
+        description="מנהלים (admin) יכולים לגשת לכל המסכים אוטומטית. הרשאות אלו מיועדות למשתמשים רגילים."
+        type="info"
+        showIcon
+        style={{ marginBottom: 16 }}
+      />
 
+      <Card>
         <Table
           columns={columns}
           dataSource={permissions}
-          rowKey="id"
           loading={loading}
+          rowKey="id"
           pagination={{
+            total: permissions.length,
             pageSize: 10,
-            showSizeChanger: true,
+            showSizeChanger: false,
             showQuickJumper: true,
-            showTotal: (total, range) => `${range[0]}-${range[1]} מתוך ${total} הרשאות`
+            showTotal: (total, range) =>
+              `${range[0]}-${range[1]} מתוך ${total} הרשאות`,
           }}
         />
-
-        <Modal
-          title={editingPermission ? 'ערוך הרשאה' : 'הוסף הרשאה חדשה'}
-          open={modalVisible}
-          onCancel={() => setModalVisible(false)}
-          footer={null}
-          width={600}
-        >
-          <Form
-            form={form}
-            layout="vertical"
-            onFinish={handleSubmit}
-            initialValues={{
-              permission_type: 'read'
-            }}
-          >
-            {!editingPermission && (
-              <>
-                <Form.Item
-                  name="user_id"
-                  label="משתמש"
-                  rules={[{ required: true, message: 'אנא בחר משתמש' }]}
-                >
-                  <Select placeholder="בחר משתמש">
-                    {users.map(user => (
-                      <Option key={user.id} value={user.id}>
-                        {user.full_name || user.username} ({user.username})
-                      </Option>
-                    ))}
-                  </Select>
-                </Form.Item>
-
-                <Form.Item
-                  name="screen_id"
-                  label="מסך"
-                  rules={[{ required: true, message: 'אנא בחר מסך' }]}
-                >
-                  <Select placeholder="בחר מסך">
-                    {screens.map(screen => (
-                      <Option key={screen.id} value={screen.id}>
-                        {screen.name}
-                      </Option>
-                    ))}
-                  </Select>
-                </Form.Item>
-              </>
-            )}
-
-            <Form.Item
-              name="permission_type"
-              label="סוג הרשאה"
-              rules={[{ required: true, message: 'אנא בחר סוג הרשאה' }]}
-            >
-              <Select>
-                <Option value="read">
-                  <Tag color="green">קריאה</Tag> - צפייה בתוכן
-                </Option>
-                <Option value="write">
-                  <Tag color="orange">כתיבה</Tag> - עריכת תוכן
-                </Option>
-                <Option value="admin">
-                  <Tag color="red">מנהל</Tag> - שליטה מלאה
-                </Option>
-              </Select>
-            </Form.Item>
-
-            <Form.Item>
-              <Space>
-                <Button type="primary" htmlType="submit">
-                  {editingPermission ? 'עדכן' : 'צור'}
-                </Button>
-                <Button onClick={() => setModalVisible(false)}>
-                  ביטול
-                </Button>
-              </Space>
-            </Form.Item>
-          </Form>
-        </Modal>
       </Card>
+
+      <Modal
+        title={editingPermission ? 'עריכת הרשאה' : 'הוספת הרשאה חדשה'}
+        open={modalVisible}
+        onCancel={() => {
+          setModalVisible(false);
+          setEditingPermission(null);
+          form.resetFields();
+        }}
+        footer={null}
+        width={600}
+      >
+        <Form
+          form={form}
+          layout="vertical"
+          onFinish={handleSubmit}
+        >
+          <Form.Item
+            name="user_id"
+            label="משתמש"
+            rules={[{ required: true, message: 'נא לבחור משתמש' }]}
+          >
+            <Select
+              placeholder="בחר משתמש"
+              showSearch
+              filterOption={(input, option) =>
+                option.children.toLowerCase().includes(input.toLowerCase())
+              }
+            >
+              {users
+                .filter(user => user.role !== 'admin' && user.role !== 'super_admin')
+                .map(user => (
+                  <Option key={user.id} value={user.id}>
+                    <Space>
+                      <UserOutlined />
+                      {user.username} - {user.full_name}
+                    </Space>
+                  </Option>
+                ))}
+            </Select>
+          </Form.Item>
+
+          <Form.Item
+            name="screen_id"
+            label="מסך"
+            rules={[{ required: true, message: 'נא לבחור מסך' }]}
+          >
+            <Select
+              placeholder="בחר מסך"
+              showSearch
+              filterOption={(input, option) =>
+                option.children.toLowerCase().includes(input.toLowerCase())
+              }
+            >
+              {screens.map(screen => (
+                <Option key={screen.id} value={screen.id}>
+                  <Space>
+                    <DesktopOutlined />
+                    {screen.name}
+                  </Space>
+                </Option>
+              ))}
+            </Select>
+          </Form.Item>
+
+          <Form.Item
+            name="permission_type"
+            label="סוג הרשאה"
+            rules={[{ required: true, message: 'נא לבחור סוג הרשאה' }]}
+          >
+            <Select placeholder="בחר סוג הרשאה">
+              {permissionTypes.map(type => (
+                <Option key={type.value} value={type.value}>
+                  <Tag color={type.color}>{type.label}</Tag>
+                  <span style={{ marginRight: 8 }}>
+                    {type.value === 'read' && '- צפייה בתוכן בלבד'}
+                    {type.value === 'write' && '- צפייה ועריכת תוכן'}
+                    {type.value === 'admin' && '- גישה מלאה לניהול המסך'}
+                  </span>
+                </Option>
+              ))}
+            </Select>
+          </Form.Item>
+
+          <Form.Item style={{ marginTop: 24, textAlign: 'left' }}>
+            <Space>
+              <Button type="primary" htmlType="submit">
+                {editingPermission ? 'עדכן הרשאה' : 'הוסף הרשאה'}
+              </Button>
+              <Button
+                onClick={() => {
+                  setModalVisible(false);
+                  setEditingPermission(null);
+                  form.resetFields();
+                }}
+              >
+                ביטול
+              </Button>
+            </Space>
+          </Form.Item>
+        </Form>
+      </Modal>
     </div>
   );
 };
 
-export default PermissionsManager; 
+export default PermissionsManager;

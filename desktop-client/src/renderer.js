@@ -4,9 +4,11 @@ const path = require('path');
 // משתני מצב
 let localData = null;
 let currentContentIndex = 0;
-let currentRssIndex = 0;
+// currentRssIndex לא צריך כי RSS מובנה ב-HTML!
+// let currentRssIndex = 0;
 let contentRotationInterval = null;
-let rssRotationInterval = null;
+// rssRotationInterval לא צריך כי RSS מובנה ב-HTML!
+// let rssRotationInterval = null;
 let isOnline = false;
 let screenId = null;
 
@@ -17,7 +19,8 @@ const CURSOR_HIDE_DELAY = 3000; // 3 שניות
 
 // משתני ניהול
 let managementPanelVisible = false;
-let currentRssSpeed = 120; // מהירות RSS ב-שניות (שונה מ-60 ל-120 - מהירות איטית)
+// currentRssSpeed לא צריך כי RSS מובנה ב-HTML!
+// let currentRssSpeed = 90; // מהירות RSS ב-שניות (מהירות איטית מאוד לקריאה נוחה)
 let currentRefreshRate = 30; // קצב ריענון ב-שניות
 
 // DOM elements
@@ -51,6 +54,42 @@ async function initializeApp() {
     // אתחול תפריט ניהול
     initializeManagementPanel();
     
+    // הצגת הודעות דוגמה מיד (לא לחכות לנתונים)
+    console.log('🚀 מציג הודעות דוגמה מיד...');
+    const immediateMessages = [
+        { content: 'ברוכים הבאים למסך הדיגיטלי! ⭐', is_active: true, speed: 20 },
+        { content: 'המערכת בהפעלה... 🚀', is_active: true, speed: 20 }
+    ];
+    displayRunningMessagesSidebar(immediateMessages);
+    
+    // הצגת RSS דוגמה מיד - ללא בדיקות
+    console.log('🚀 מציג RSS דוגמה מיד...');
+    // RSS כבר מוצג ב-HTML - אבל נעדכן אותו עם דוגמה!
+    const demoRssItems = [
+        { title: 'ברוכים הבאים למערכת Digitlex', description: 'מערכת דיגיטלית מתקדמת לניהול מסכים' },
+        { title: 'חדשות נגללות בזמן אמת', description: 'עדכונים מתמידים ללא הפסקה' },
+        { title: 'ממשק משתמש מתקדם', description: 'עיצוב מודרני ונוח לשימוש' }
+    ];
+    populateRssTicker(demoRssItems);
+    console.log('✅ RSS מובנה ב-HTML עודכן עם דוגמה - עובד מיד!');
+    
+    // בדיקה מיידית שה-RSS המובנה ב-HTML עובד
+    setTimeout(() => {
+        const isVisible = rssBottom.style.display === 'block';
+        const hasAnimation = rssTickerContent.style.animation.includes('rssScrollCenter');
+        console.log(`🔍 RSS HTML Check:`, {
+            isVisible,
+            hasAnimation,
+            animationStyle: rssTickerContent.style.animation
+        });
+        
+        if (isVisible && hasAnimation) {
+            console.log('✅ RSS מובנה ב-HTML עובד נהדר!');
+        } else {
+            console.log('📺 RSS מובנה ב-HTML צריך בדיקה נוספת');
+        }
+    }, 100);
+    
     // בדיקת מזהה מסך קיים
     screenId = await ipcRenderer.invoke('get-screen-id');
     
@@ -59,8 +98,10 @@ async function initializeApp() {
         return;
     }
 
-    // טעינת נתונים מקומיים
-    await loadData();
+    // טוען נתונים לאחר עלייה מיידית של הממשק (כדי לא להפריע ל-RSS)
+    setTimeout(() => {
+        loadData();
+    }, 150);
     
     // הפעלת עדכון זמן
     startTimeUpdates();
@@ -68,9 +109,14 @@ async function initializeApp() {
     // בדיקת חיבור ראשונית
     await checkConnection();
     
-    // אתחול אנימציית RSS עם מהירות איטית
-    initializeRssAnimation();
-    console.log(`🚀 RSS initialized with speed: ${currentRssSpeed}s (slow speed)`);
+    // טעינת נתונים ברקע (לא מאפס את ה-RSS)
+    console.log('🔄 טוען נתונים ברקע בלי לאפס RSS...');
+    setTimeout(async () => {
+        const serverData = await ipcRenderer.invoke('sync-with-server');
+        if (serverData) {
+            console.log('📡 קיבל נתונים חדשים מהשרת');
+        }
+    }, 1000); // אחרי שנייה כדי לא להפריע ל-RSS
     
     // האזנה לעדכוני לוגו בזמן אמת
     if (window.io) {
@@ -146,51 +192,10 @@ function initializeManagementPanel() {
     });
 }
 
-// אתחול אנימציית RSS
+// אתחול אנימציית RSS - לא צריך כי RSS מובנה ב-HTML!
 function initializeRssAnimation() {
-    if (rssTickerContent) {
-        // הפעלת אנימציה מיד עם תוכן דוגמה אם אין תוכן RSS
-        if (!rssTickerContent.children.length) {
-            const demoContent = [
-                { title: 'ברוכים הבאים ל-Digitlex', content: 'מסך דיגיטלי מתקדם עם חדשות ועדכונים בזמן אמת...' },
-                { title: 'מערכת ניהול מתקדמת', content: 'ניהול תוכן, חדשות והודעות דרך פאנל ניהול מתקדם...' },
-                { title: 'עדכונים בזמן אמת', content: 'כל העדכונים מוצגים בזמן אמת ללא צורך ברענון...' }
-            ];
-            
-            const tickerItems = demoContent.map(item => {
-                const tickerItem = document.createElement('div');
-                tickerItem.className = 'rss-ticker-item';
-                
-                const title = document.createElement('div');
-                title.className = 'rss-ticker-item-title';
-                title.textContent = item.title;
-                
-                const content = document.createElement('div');
-                content.className = 'rss-ticker-item-content';
-                content.textContent = item.content;
-                
-                tickerItem.appendChild(title);
-                tickerItem.appendChild(content);
-                
-                return tickerItem;
-            });
-            
-            // יצירת לולאה אינסופית
-            const infiniteItems = [...tickerItems, ...tickerItems, ...tickerItems];
-            
-            rssTickerContent.innerHTML = '';
-            infiniteItems.forEach(item => {
-                rssTickerContent.appendChild(item.cloneNode(true));
-            });
-            
-            // הצגת RSS
-            rssBottom.style.display = 'block';
-        }
-        
-        // הפעלת אנימציה
-        rssTickerContent.style.animation = `rssScroll ${currentRssSpeed}s linear infinite`;
-        console.log(`🚀 RSS animation initialized with speed: ${currentRssSpeed}s`);
-    }
+    console.log('📺 RSS מובנה ב-HTML - לא צריך initializeRssAnimation!');
+    // ה-RSS המובנה ב-HTML עובד נהדר עם האנימציה שלו!
 }
 
 // יצירת תפריט ניהול
@@ -227,7 +232,7 @@ function createManagementPanel() {
         <div style="margin-bottom: 15px;">
             <label style="display: block; margin-bottom: 5px; color: #ffd700;">כתובת שרת:</label>
             <input type="text" id="managementServerUrl" placeholder="http://127.0.0.1:3001" style="width: 100%; padding: 8px; border: 1px solid #ffd700; background: #333; color: white; border-radius: 5px;">
-            <small style="color: #ccc; font-size: 0.8em;">לדוגמה: http://192.168.1.100:3001 או http://localhost:3001</small>
+            <small style="color: #ccc; font-size: 0.8em;">לדוגמה: http://192.168.1.100:3001 או http://127.0.0.1:3001</small>
         </div>
         
         <div style="margin-bottom: 15px;">
@@ -271,7 +276,7 @@ async function loadManagementPanelValues() {
         
         // טעינת ערכים אחרים
         document.getElementById('managementScreenId').value = screenId || '';
-        document.getElementById('managementRssSpeed').value = currentRssSpeed;
+        // document.getElementById('managementRssSpeed').value = currentRssSpeed; // לא צריך כי RSS מובנה ב-HTML!
         document.getElementById('managementRefreshRate').value = currentRefreshRate;
     } catch (error) {
         console.error('שגיאה בטעינת ערכי ניהול:', error);
@@ -333,12 +338,11 @@ async function saveManagementSettings() {
             console.log(`מזהה מסך עודכן: ${screenId}`);
         }
         
-        // עדכון מהירות RSS
-        if (newRssSpeed !== currentRssSpeed) {
-            currentRssSpeed = newRssSpeed;
-            updateRssSpeed();
-            console.log(`מהירות RSS עודכנה: ${currentRssSpeed} שניות`);
-        }
+        // עדכון מהירות RSS - לא צריך כי RSS מובנה ב-HTML!
+        // if (newRssSpeed !== currentRssSpeed) { // לא צריך כי RSS מובנה ב-HTML!
+        //     currentRssSpeed = newRssSpeed;
+        //     console.log(`מהירות RSS עודכנה: ${currentRssSpeed} שניות - אבל RSS מובנה ב-HTML לא משתנה!`);
+        // }
         
         // עדכון קצב ריענון
         if (newRefreshRate !== currentRefreshRate) {
@@ -369,10 +373,22 @@ async function testConnectionFromPanel() {
     statusDiv.textContent = 'בודק חיבור...';
     
     try {
-        await testConnection();
-        showManagementStatus('חיבור תקין!', 'success');
+        // קביעת כתובת שרת חדשה אם הוזנה
+        const newServerUrl = document.getElementById('managementServerUrl').value.trim();
+        if (newServerUrl) {
+            await ipcRenderer.invoke('set-server-url', newServerUrl);
+            console.log(`כתובת שרת עודכנה זמנית לבדיקה: ${newServerUrl}`);
+        }
+        
+        const connected = await ipcRenderer.invoke('check-connection');
+        if (connected) {
+            showManagementStatus('חיבור תקין! ✅', 'success');
+        } else {
+            showManagementStatus('שגיאה בחיבור לשרת ❌', 'error');
+        }
     } catch (error) {
-        showManagementStatus('שגיאה בחיבור לשרת', 'error');
+        console.error('שגיאה בבדיקת חיבור:', error);
+        showManagementStatus(`שגיאה בחיבור: ${error.message}`, 'error');
     }
 }
 
@@ -393,12 +409,10 @@ function showManagementStatus(message, type) {
     }, 3000);
 }
 
-// עדכון מהירות RSS
+// עדכון מהירות RSS - לא צריך כי RSS מובנה ב-HTML!
 function updateRssSpeed() {
-    if (rssTickerContent) {
-        rssTickerContent.style.animation = `rssScroll ${currentRssSpeed}s linear infinite`;
-        console.log(`🔄 RSS speed updated to: ${currentRssSpeed}s`);
-    }
+    console.log('📺 RSS מובנה ב-HTML - לא צריך עדכון מהירות!');
+    // ה-RSS המובנה ב-HTML עובד נהדר עם המהירות שלו!
 }
 
 // עדכון קצב ריענון
@@ -498,39 +512,78 @@ async function loadData() {
     try {
         loadingMessage.style.display = 'flex';
         
-        // טעינת נתונים מקומיים
-        const newLocalData = await ipcRenderer.invoke('get-local-data');
+        console.log('🚀 מתחיל טעינת נתונים...');
         
-        console.log('Raw local data received:', newLocalData);
+            // RSS כבר מוצג ב-HTML - אין צורך ב-JavaScript!
+            console.log('✅ RSS כבר מוצג ב-HTML - עובד מיד!');
+            
+            // הצגת נתוני דוגמה לתוכן
+            displayDemoData();
         
-        if (newLocalData) {
-            console.log('נתונים מקומיים נטענו:');
+        // טעינת נתונים מקומיים קיימים (אם יש) - לא מוחק אותם!
+        console.log('📂 בודק נתונים מקומיים קיימים...');
+        const existingLocalData = await ipcRenderer.invoke('get-local-data');
+        
+        if (existingLocalData) {
+            console.log('💾 נמצאו נתונים מקומיים קיימים - מציג אותם תחילה');
+            localData = existingLocalData;
+                    // עדכון מלא כולל RSS - RSS מובנה ב-HTML!
+        displayData(localData);
+        }
+        
+        // מנסה לטעון נתונים חדשים מהשרת
+        console.log('🌐 מנסה לטעון נתונים חדשים מהשרת...');
+        
+        try {
+            const syncSuccess = await ipcRenderer.invoke('sync-with-server');
+            
+            if (syncSuccess) {
+                console.log('✅ סנכרון עם השרת הצליח - טוען נתונים חדשים');
+                
+                // טעינת נתונים מקומיים חדשים (שזה עתה נשמרו)
+                const newLocalData = await ipcRenderer.invoke('get-local-data');
+                
+                if (newLocalData && newLocalData.lastSync) {
+                    console.log('🔄 מעדכן לנתונים חדשים מהשרת:');
             console.log('- screenData:', newLocalData.screenData);
             console.log('- content items:', newLocalData.content ? newLocalData.content.length : 0);
-            console.log('- content details:', newLocalData.content);
             console.log('- rssContent items:', newLocalData.rssContent ? newLocalData.rssContent.length : 0);
             console.log('- messages items:', newLocalData.messages ? newLocalData.messages.length : 0);
+                    console.log('- lastSync:', newLocalData.lastSync);
             
-            // בדיקה אם הנתונים השתנו
-            const hasDataChanged = hasLocalDataChanged(localData, newLocalData);
-            
-            if (hasDataChanged) {
-                console.log('נתונים השתנו - מעדכן תצוגה');
                 localData = newLocalData;
-                displayData(localData);
+                        // עדכון מלא כולל RSS - RSS מובנה ב-HTML!
+        displayData(newLocalData);
             } else {
-                console.log('נתונים לא השתנו - לא מעדכן תצוגה');
-                localData = newLocalData; // עדכון הנתונים אבל לא התצוגה
+                    console.log('⚠️ סנכרון הצליח אבל לא נמצאו נתונים חדשים');
             }
         } else {
-            console.log('No local data found - using demo data');
-            displayDemoData();
+                console.log('❌ סנכרון עם השרת נכשל');
+                
+                if (existingLocalData) {
+                    console.log('💾 משתמש בנתונים מקומיים קיימים');
+                } else {
+                    console.log('📺 נשאר עם נתוני דוגמה');
+                }
+            }
+        } catch (syncError) {
+            console.error('❌ שגיאה בסנכרון עם השרת:', syncError);
+            
+            if (existingLocalData) {
+                console.log('💾 אין חיבור לשרת - משתמש בנתונים מקומיים קיימים');
+                // הנתונים המקומיים כבר מוצגים
+                updateConnectionStatus(false); // עדכון סטטוס חיבור
+            } else {
+                console.log('📺 אין חיבור לשרת ואין נתונים מקומיים - נשאר עם נתוני דוגמה');
+                // נתוני הדוגמה כבר מוצגים
+                updateConnectionStatus(false); // עדכון סטטוס חיבור
+            }
         }
         
         loadingMessage.style.display = 'none';
     } catch (error) {
-        console.error('שגיאה בטעינת נתונים:', error);
-        console.log('Error loading data - falling back to demo data');
+        console.error('❌ שגיאה כללית בטעינת נתונים:', error);
+        console.log('🔄 נשאר עם נתוני דוגמה');
         displayDemoData();
         loadingMessage.style.display = 'none';
     }
@@ -543,8 +596,8 @@ function hasLocalDataChanged(oldData, newData) {
     // בדיקת שינויים בתוכן
     if (!arraysEqual(oldData.content, newData.content)) return true;
     
-    // בדיקת שינויים ב-RSS
-    if (!arraysEqual(oldData.rssContent, newData.rssContent)) return true;
+    // בדיקת שינויים ב-RSS - לא בודק כי RSS מובנה ב-HTML!
+    // if (!arraysEqual(oldData.rssContent, newData.rssContent)) return true;
     
     // בדיקת שינויים בהודעות
     if (!arraysEqual(oldData.messages, newData.messages)) return true;
@@ -591,17 +644,19 @@ function displayDemoData() {
     
     // הודעות דוגמה
     const demoMessages = [
-        { content: 'ברוכים הבאים למסך הדיגיטלי!', is_active: true, speed: 25 },
-        { content: 'המערכת עובדת במצב הדגמה', is_active: true, speed: 25 }
+        { content: 'ברוכים הבאים למסך הדיגיטלי! ⭐', is_active: true, speed: 20 },
+        { content: 'המערכת עובדת במצב הדגמה 🚀', is_active: true, speed: 20 }
     ];
     displayRunningMessagesSidebar(demoMessages);
     
-    // RSS דוגמה
-    const demoRSS = [
-        { title: 'חדשות דוגמה', description: 'זהו פריט חדשות לדוגמה' },
-        { title: 'עדכון מערכת', description: 'המערכת עובדת תקין' }
+    // RSS מובנה ב-HTML - מציג RSS דוגמה!
+    console.log('📺 RSS מובנה ב-HTML - מציג RSS דוגמה!');
+    const demoRssItems = [
+        { title: 'ברוכים הבאים למערכת Digitlex', description: 'מערכת דיגיטלית מתקדמת לניהול מסכים' },
+        { title: 'חדשות נגללות בזמן אמת', description: 'עדכונים מתמידים ללא הפסקה' },
+        { title: 'ממשק משתמש מתקדם', description: 'עיצוב מודרני ונוח לשימוש' }
     ];
-    displayRSSTickerContent(demoRSS);
+    populateRssTicker(demoRssItems);
     
     // תוכן דוגמה - נציג תוכן ממש במקום הודעת "אין תוכן"
     const demoContent = [
@@ -630,7 +685,7 @@ function displayDemoData() {
     displayContent(demoContent);
 }
 
-// הצגת נתונים
+// הצגת נתונים (ללא RSS - RSS מובנה ב-HTML!)
 function displayData(data) {
     if (!data) {
         // נתוני דוגמה אם אין נתונים
@@ -655,14 +710,15 @@ function displayData(data) {
     if (data.content && data.content.length > 0) {
         displayContent(data.content);
     } else {
-        showNoContentMessage();
+        showDemoContent();
     }
     
-    // הצגת RSS בפורמט רץ
+    // RSS מובנה ב-HTML - מעדכן עם תוכן מהשרת!
     if (data.rssContent && data.rssContent.length > 0) {
-        displayRSSTickerContent(data.rssContent);
+        console.log(`📡 יש RSS מהשרת: ${data.rssContent.length} פריטים - מעדכן RSS מובנה ב-HTML!`);
+        populateRssTicker(data.rssContent);
     } else {
-        showNoRSSMessage();
+        console.log('📺 אין RSS מהשרת - משאיר RSS דוגמה מובנה ב-HTML');
     }
     
     // הצגת הודעות רצות בצד
@@ -714,15 +770,18 @@ function displayContent(content) {
                     const img = document.createElement('img');
                     img.src = `file://${item.local_path || item.file_path}`;
                     img.alt = item.title || (item.type === 'ad' ? 'פירסומת' : 'תמונה');
-                                         img.onerror = (e) => {
+                                         img.onerror = async (e) => {
                          console.error('Image/ad failed to load:', img.src);
                          console.error('Error details:', e);
                          console.error('Item details:', item);
                          
                          // ניסיון טעינה מהשרת ישירות אם הקובץ המקומי נכשל
                          if (item.file_path && !img.src.includes('localhost:3001')) {
-                             console.log('Trying to load from server:', `http://localhost:3001${item.file_path}`);
-                             img.src = `http://localhost:3001${item.file_path}`;
+                             // קבלת כתובת השרת הנכונה
+                             const serverUrl = await window.electronAPI?.getServerUrl?.() || 'http://localhost:3001';
+                             const newSrc = `${serverUrl}${item.file_path}`;
+                             console.log('Trying to load from server:', newSrc);
+                             img.src = newSrc;
                          } else {
                              contentDiv.innerHTML = '<div class="loading">שגיאה בטעינת ' + (item.type === 'ad' ? 'פירסומת' : 'תמונה') + ' - ' + (item.file_path || 'אין נתיב קובץ') + '</div>';
                          }
@@ -806,7 +865,8 @@ function startContentRotation(content) {
     
     currentContentIndex = 0;
     
-    contentRotationInterval = setInterval(() => {
+    // פונקציה לסיבוב תוכן שמכבדת את זמן הצגה הפרטני של כל פריט
+    function rotateToNext() {
         const currentItem = contentContainer.children[currentContentIndex];
         if (currentItem) {
             currentItem.classList.remove('active');
@@ -818,134 +878,131 @@ function startContentRotation(content) {
         if (nextItem) {
             nextItem.classList.add('active');
         }
-    }, content[currentContentIndex]?.display_duration || 5000);
-}
-
-// הצגת RSS בפורמט רץ למטה עם לולאה אינסופית
-function displayRSSTickerContent(rssContent) {
-    if (!rssContent || rssContent.length === 0) {
-        showNoRSSMessage();
-        return;
-    }
-    
-    // יצירת תוכן RSS חדש
-    const newContent = rssContent.map(item => {
-        const title = item.title || 'כותרת לא זמינה';
-        const content = (item.description || item.content || '').substring(0, 100) + '...';
-        return { title, content };
-    });
-    
-    // בדיקה אם התוכן השתנה
-    const currentContent = getCurrentRSSContent();
-    if (isRSSContentEqual(currentContent, newContent)) {
-        console.log('תוכן RSS לא השתנה - לא מעדכן');
-        return;
-    }
-    
-    console.log('תוכן RSS השתנה - מעדכן...');
-    
-    // יצירת פריטי RSS עבור הטיקר
-    const tickerItems = newContent.map(item => {
-        const tickerItem = document.createElement('div');
-        tickerItem.className = 'rss-ticker-item';
         
-        const title = document.createElement('div');
-        title.className = 'rss-ticker-item-title';
-        title.textContent = item.title;
+        // קביעת זמן הצגה לפריט הנוכחי - בשניות או במילישניות
+        let currentDisplayDuration = content[currentContentIndex]?.display_duration || 5000;
         
-        const content = document.createElement('div');
-        content.className = 'rss-ticker-item-content';
-        content.textContent = item.content;
-        
-        tickerItem.appendChild(title);
-        tickerItem.appendChild(content);
-        
-        return tickerItem;
-    });
-    
-    // יצירת לולאה אינסופית - כפילות הפריטים
-    const infiniteItems = [...tickerItems, ...tickerItems, ...tickerItems];
-    
-    // שמירת המיקום הנוכחי של האנימציה
-    const currentTransform = rssTickerContent.style.transform;
-    const isCurrentlyVisible = rssBottom.style.display !== 'none';
-    
-    // הצגת הRSS אם לא היה מוצג קודם
-    if (!isCurrentlyVisible) {
-        rssBottom.style.display = 'block';
-        console.log('🚀 מציג RSS ticker חדש');
-    }
-    
-    // עדכון תוכן הטיקר
-    rssTickerContent.innerHTML = '';
-    infiniteItems.forEach(item => {
-        rssTickerContent.appendChild(item.cloneNode(true));
-    });
-    
-    // הפעלת אנימציה מיד עם המהירות הנוכחית
-    startInfiniteRSSAnimation();
-}
-
-// פונקציה לקבלת התוכן הנוכחי של RSS
-function getCurrentRSSContent() {
-    const items = rssTickerContent.querySelectorAll('.rss-ticker-item');
-    const content = [];
-    
-    // לוקח רק את הפריטים הראשונים (ללא הכפילויות)
-    const uniqueItems = Math.floor(items.length / 3);
-    
-    for (let i = 0; i < uniqueItems; i++) {
-        const item = items[i];
-        const title = item.querySelector('.rss-ticker-item-title')?.textContent || '';
-        const contentText = item.querySelector('.rss-ticker-item-content')?.textContent || '';
-        content.push({ title, content: contentText });
-    }
-    
-    return content;
-}
-
-// פונקציה להשוואת תוכן RSS
-function isRSSContentEqual(content1, content2) {
-    if (content1.length !== content2.length) return false;
-    
-    for (let i = 0; i < content1.length; i++) {
-        if (content1[i].title !== content2[i].title || 
-            content1[i].content !== content2[i].content) {
-            return false;
+        // אם הזמן קטן מ-100, אז זה כנראה בשניות ולא במילישניות
+        if (currentDisplayDuration < 100) {
+            currentDisplayDuration = currentDisplayDuration * 1000;
         }
+        
+        console.log(`⏱️ מציג פריט ${currentContentIndex}, זמן הצגה: ${currentDisplayDuration}ms (${currentDisplayDuration/1000}s)`);
+        
+        // קביעת timeout חדש עם זמן הצגה של הפריט הנוכחי
+        clearTimeout(contentRotationInterval);
+        contentRotationInterval = setTimeout(rotateToNext, currentDisplayDuration);
     }
     
+    // הפעלת הפריט הראשון מיד
+    const firstItem = contentContainer.children[0];
+    if (firstItem) {
+        firstItem.classList.add('active');
+    }
+    
+    // אם יש יותר מפריט אחד, התחל סיבוב
+    if (content.length > 1) {
+        let firstDisplayDuration = content[0]?.display_duration || 5000;
+        
+        // אם הזמן קטן מ-100, אז זה כנראה בשניות ולא במילישניות
+        if (firstDisplayDuration < 100) {
+            firstDisplayDuration = firstDisplayDuration * 1000;
+        }
+        
+        console.log(`⏱️ מציג פריט ראשון, זמן הצגה: ${firstDisplayDuration}ms (${firstDisplayDuration/1000}s)`);
+        contentRotationInterval = setTimeout(rotateToNext, firstDisplayDuration);
+    }
+}
+
+// הצגת RSS בפורמט רץ למטה עם לולאה אינסופית - לא צריך כי RSS מובנה ב-HTML!
+function displayRSSTickerContent(rssContent) {
+    console.log('📺 RSS מובנה ב-HTML - לא צריך displayRSSTickerContent!');
+    // ה-RSS המובנה ב-HTML עובד נהדר - לא נשנה אותו!
+}
+
+// פונקציה חדשה - עדכון RSS מובנה ב-HTML עם תוכן מהשרת
+function populateRssTicker(rssItems) {
+    if (!rssItems || rssItems.length === 0) {
+        console.log('📺 אין RSS מהשרת - משאיר RSS דוגמה מובנה ב-HTML');
+        return;
+    }
+    
+    console.log(`📡 מעדכן RSS מובנה ב-HTML עם ${rssItems.length} פריטים מהשרת`);
+    
+    // ניקוי RSS הקיים
+    if (rssTickerContent) {
+    rssTickerContent.innerHTML = '';
+
+        const makeItem = (item) => {
+            const rssItem = document.createElement('div');
+            rssItem.className = 'rss-ticker-item';
+            rssItem.style.cssText = `
+                margin-left: 60px !important;
+                padding: 8px 15px !important;
+                background: rgba(255, 215, 0, 0.1) !important;
+                border-radius: 8px !important;
+                border: 1px solid #ffd700 !important;
+                white-space: nowrap !important;
+                flex-shrink: 0 !important;
+                display: flex !important;
+                flex-direction: column !important;
+                justify-content: center !important;
+                max-height: 60px !important;
+                font-size: 0.95em !important;
+                line-height: 1.2 !important;
+            `;
+            const title = item.title || 'חדשות';
+            const description = item.description || item.content || '';
+            rssItem.innerHTML = `
+                <div style="font-weight: bold !important; margin-bottom: 2px !important;">📰 ${title}</div>
+                <div style="font-size: 0.8em !important; opacity: 0.9 !important;">${description}</div>
+            `;
+            return rssItem;
+        };
+
+        // הוספת פריטי RSS חדשים מהשרת
+        rssItems.forEach((item) => rssTickerContent.appendChild(makeItem(item)));
+        // שכפול התוכן ללולאה אינסופית רציפה בעת גלילה RTL
+        rssItems.forEach((item) => rssTickerContent.appendChild(makeItem(item)));
+        
+        // חזרה לאנימציה הקודמת (RTL רציף)
+        rssTickerContent.style.animationName = 'scroll-rtl';
+        rssTickerContent.style.animationDuration = '30s';
+        rssTickerContent.style.animationTimingFunction = 'linear';
+        rssTickerContent.style.animationIterationCount = 'infinite';
+
+        console.log('✅ RSS מובנה ב-HTML עודכן עם תוכן מהשרת (לופ אינסופי משמאל לימין)');
+    } else {
+        console.error('❌ לא נמצא אלמנט rssTickerContent');
+    }
+}
+
+// פונקציות RSS - לא צריך כי RSS מובנה ב-HTML!
+function getCurrentRSSContent() {
+    console.log('📺 RSS מובנה ב-HTML - לא צריך getCurrentRSSContent!');
+    return [];
+}
+
+function isRSSContentEqual(content1, content2) {
+    console.log('📺 RSS מובנה ב-HTML - לא צריך isRSSContentEqual!');
     return true;
 }
 
-// פונקציה לעדכון חלק של תוכן RSS
 function updateRSSContentSmoothly(newItems) {
-    // שמירת המיקום הנוכחי
-    const currentTransform = rssTickerContent.style.transform;
-    
-    // עדכון התוכן בצורה חלקה
-    rssTickerContent.innerHTML = '';
-    newItems.forEach(item => {
-        rssTickerContent.appendChild(item.cloneNode(true));
-    });
-    
-    // החזרת המיקום הנוכחי
-    if (currentTransform) {
-        rssTickerContent.style.transform = currentTransform;
-    }
+    console.log('📺 RSS מובנה ב-HTML - לא צריך updateRSSContentSmoothly!');
+    // ה-RSS המובנה ב-HTML עובד נהדר - לא נשנה אותו!
 }
 
-// פונקציה להפעלת אנימציה אינסופית ל-RSS
+// פונקציה להפעלת אנימציה אינסופית ל-RSS - לא צריך כי RSS מובנה ב-HTML!
 function startInfiniteRSSAnimation() {
-    if (rssTickerContent) {
-        // הסרת אנימציה קיימת
-        rssTickerContent.style.animation = 'none';
-        
-        // הפעלת אנימציה חדשה מיד
-        rssTickerContent.style.animation = `rssScroll ${currentRssSpeed}s linear infinite`;
-        
-        console.log(`🚀 RSS animation started with speed: ${currentRssSpeed}s (slow speed)`);
-    }
+    console.log('📺 RSS מובנה ב-HTML - לא צריך אנימציה נוספת!');
+    // ה-RSS המובנה ב-HTML עובד נהדר עם האנימציה שלו!
+}
+
+// פונקציה להצגת RSS מיד ללא בדיקות - לא צריך כי RSS מובנה ב-HTML!
+function forceDisplayRSS(rssContent) {
+    console.log('📺 RSS מובנה ב-HTML - לא צריך forceDisplayRSS!');
+    // ה-RSS המובנה ב-HTML עובד נהדר - לא נשנה אותו!
 }
 
 // הצגת הודעות רצות בצד
@@ -968,10 +1025,14 @@ function displayRunningMessagesSidebar(messages) {
     if (messageScroller) {
         messageScroller.textContent = allMessages;
         
-        // הגדרת מהירות אנימציה לפי המהירות הראשונה (איטי יותר)
-        const speed = activeMessages[0]?.speed || 40;
+        // הגדרת מהירות אנימציה - מעט מהיר יותר כברירת מחדל
+        const speed = activeMessages[0]?.speed || 18;
+        // נוודא שהאנימציה הנכונה מוגדרת (scroll-vertical-360)
+        messageScroller.style.animationName = 'scroll-vertical-360';
         messageScroller.style.animationDuration = `${speed}s`;
-        console.log('Set animation duration to:', speed + 's');
+        messageScroller.style.animationTimingFunction = 'linear';
+        messageScroller.style.animationIterationCount = 'infinite';
+        console.log('Set animation to scroll-vertical-360 with duration:', speed + 's');
     } else {
         console.error('messageScroller element not found');
     }
@@ -1057,20 +1118,133 @@ function showNoContentMessage() {
     contentContainer.innerHTML = '<div class="loading">אין תוכן זמין להצגה</div>';
 }
 
+// הצגת תוכן דוגמה (כאשר אין תוכן מהשרת)
+function showDemoContent() {
+    console.log('📺 מציג תוכן דוגמה כי RSS מובנה ב-HTML עובד נהדר!');
+    
+    // RSS דוגמה
+    const demoRssItems = [
+        { title: 'ברוכים הבאים למערכת Digitlex', description: 'מערכת דיגיטלית מתקדמת לניהול מסכים' },
+        { title: 'חדשות נגללות בזמן אמת', description: 'עדכונים מתמידים ללא הפסקה' },
+        { title: 'ממשק משתמש מתקדם', description: 'עיצוב מודרני ונוח לשימוש' }
+    ];
+    populateRssTicker(demoRssItems);
+    
+    // תוכן דוגמה - נציג תוכן ממש במקום הודעת "אין תוכן"
+    const demoContent = [
+        { 
+            type: 'code', 
+            content: '<h1 style="color: #ffd700; text-align: center; font-size: 3em;">🖥️ Digitlex</h1><p style="text-align: center; font-size: 1.5em; margin-top: 20px;">ברוכים הבאים למערכת הניהול הדיגיטלית</p>', 
+            is_active: true,
+            display_duration: 5000,
+            title: 'ברכה'
+        },
+        { 
+            type: 'code', 
+            content: '<div style="text-align: center;"><h2 style="color: #ffd700; font-size: 2.5em;">📊 סטטיסטיקות</h2><div style="display: flex; justify-content: space-around; margin-top: 30px;"><div style="background: rgba(255,215,0,0.1); padding: 20px; border-radius: 15px; border: 2px solid #ffd700;"><h3>100+</h3><p>לקוחות מרוצים</p></div><div style="background: rgba(255,215,0,0.1); padding: 20px; border-radius: 15px; border: 2px solid #ffd700;"><h3>24/7</h3><p>זמינות</p></div></div></div>', 
+            is_active: true,
+            display_duration: 7000,
+            title: 'סטטיסטיקות'
+        },
+        { 
+            type: 'code', 
+            content: '<div style="text-align: center;"><h2 style="color: #ffd700; font-size: 2.5em;">⏰ השעה הנוכחית</h2><div style="font-size: 4em; color: #fff; margin: 20px 0; font-family: monospace;" id="liveClock"></div><p style="font-size: 1.2em;">מעודכן בזמן אמת</p></div><script>function updateClock(){const now = new Date(); document.getElementById("liveClock").textContent = now.toLocaleTimeString("he-IL");} setInterval(updateClock, 1000); updateClock();</script>', 
+            is_active: true,
+            display_duration: 6000,
+            title: 'שעון חי'
+        }
+    ];
+    displayContent(demoContent);
+}
+
 function showNoRSSMessage() {
-    rssTickerContent.innerHTML = '<div class="loading">אין חדשות זמינות</div>';
-    rssBottom.style.display = 'block';
+    console.log('📺 RSS מובנה ב-HTML - לא צריך showNoRSSMessage!');
+    // ה-RSS המובנה ב-HTML עובד נהדר - לא נשנה אותו!
 }
 
 function showErrorMessage(message) {
     contentContainer.innerHTML = `<div class="loading">שגיאה: ${message}</div>`;
 }
 
-// אירועי IPC מהתהליך הראשי
+// עדכון חלקי חכם - מעדכן רק את החלקים שהשתנו
+function updateDataSelectively(oldData, newData) {
+    // בדיקת שינויי תוכן
+    if (!oldData || JSON.stringify(oldData.content) !== JSON.stringify(newData.content)) {
+        console.log('🎬 מעדכן תוכן...');
+        if (newData.content && newData.content.length > 0) {
+            displayContent(newData.content);
+        } else {
+            showNoContentMessage();
+        }
+    }
+    
+    // בדיקת שינויי RSS - מעדכן RSS מובנה ב-HTML!
+    if (!oldData || JSON.stringify(oldData.rssContent) !== JSON.stringify(newData.rssContent)) {
+        console.log('📡 RSS השתנה - מעדכן RSS מובנה ב-HTML!');
+        if (newData.rssContent && newData.rssContent.length > 0) {
+            populateRssTicker(newData.rssContent);
+        }
+    }
+    
+    // בדיקת שינויי הודעות
+    if (!oldData || JSON.stringify(oldData.messages) !== JSON.stringify(newData.messages)) {
+        console.log('📝 מעדכן הודעות...');
+        if (newData.messages && newData.messages.length > 0) {
+            displayRunningMessagesSidebar(newData.messages);
+        }
+    }
+    
+    // בדיקת שינויי כותרת ולוגו
+    if (!oldData || 
+        oldData.screenData?.name !== newData.screenData?.name ||
+        oldData.screenData?.logo_url !== newData.screenData?.logo_url) {
+        console.log('🏷️ מעדכן כותרת ולוגו...');
+        
+        if (newData.screenData) {
+            if (newData.screenData.name !== screenTitle.textContent) {
+                screenTitle.textContent = newData.screenData.name || 'Digitlex';
+            }
+            
+            // עדכון לוגו רק אם השתנה
+            if (oldData?.screenData?.logo_url !== newData.screenData?.logo_url) {
+                if (newData.screenData.logo_url) {
+                    logoArea.innerHTML = `<img src="${newData.screenData.logo_url}" alt="לוגו" style="max-height: 60px; max-width: 200px; object-fit: contain;">`;
+                } else {
+                    logoArea.innerHTML = '<span>מקום ללוגו</span>';
+                }
+            }
+        }
+    }
+    
+    console.log('✅ עדכון חלקי הושלם - RSS ופירסומות ממשיכים ללא הפרעה');
+}
+
+// אירועי IPC מהתהליך הראשי - עדכון חכם בלי רענון מלא
 ipcRenderer.on('data-updated', (event, data) => {
-    console.log('נתונים עודכנו מהשרת');
+    console.log('📢 קיבלתי עדכון נתונים מהשרת');
+    
+    // בדיקה אם יש שינויים אמיתיים שדורשים עדכון - כולל RSS!
+    const hasRealChanges = !localData || 
+        JSON.stringify(localData.content) !== JSON.stringify(data.content) ||
+        JSON.stringify(localData.rssContent) !== JSON.stringify(data.rssContent) ||
+        JSON.stringify(localData.messages) !== JSON.stringify(data.messages) ||
+        (localData.screenData?.name !== data.screenData?.name) ||
+        (localData.screenData?.logo_url !== data.screenData?.logo_url);
+    
+    if (hasRealChanges) {
+        console.log('🔄 יש שינויים אמיתיים - מעדכן חלקית...');
+        const oldLocalData = localData;
     localData = data;
-    displayData(data);
+        
+        // עדכון חלקי חכם
+        updateDataSelectively(oldLocalData, data);
+    } else {
+        console.log('✅ אין שינויים - שומר על המצב הנוכחי (RSS ממשיך לרוץ)');
+        // עדכון רק timestamp
+        if (localData) {
+            localData.lastSync = data.lastSync;
+        }
+    }
 });
 
 ipcRenderer.on('connection-status', (event, status) => {
@@ -1106,6 +1280,14 @@ window.saveScreenId = saveScreenId;
 window.testConnection = testConnection;
 window.exitApp = exitApp;
 
+// הגדרת API לחיבור עם Electron
+window.electronAPI = {
+    getServerUrl: () => ipcRenderer.invoke('get-server-url'),
+    setServerUrl: (url) => ipcRenderer.invoke('set-server-url', url),
+    getScreenId: () => ipcRenderer.invoke('get-screen-id'),
+    setScreenId: (id) => ipcRenderer.invoke('set-screen-id', id)
+};
+
 // מניעת תפריט הקשר ימני
 document.addEventListener('contextmenu', (e) => {
     e.preventDefault();
@@ -1126,9 +1308,10 @@ window.addEventListener('beforeunload', () => {
     if (contentRotationInterval) {
         clearInterval(contentRotationInterval);
     }
-    if (rssRotationInterval) {
-        clearInterval(rssRotationInterval);
-    }
+    // rssRotationInterval לא קיים כי RSS מובנה ב-HTML!
+    // if (rssRotationInterval) {
+    //     clearInterval(rssRotationInterval);
+    // }
     if (cursorHideTimeout) {
         clearTimeout(cursorHideTimeout);
     }

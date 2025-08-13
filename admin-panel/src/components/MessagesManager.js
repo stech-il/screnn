@@ -23,7 +23,7 @@ import {
   PlayCircleOutlined,
   PauseCircleOutlined
 } from '@ant-design/icons';
-import axios from 'axios';
+import api from '../utils/axios';
 
 const { Title, Text, Paragraph } = Typography;
 const { TextArea } = Input;
@@ -40,7 +40,7 @@ const MessagesManager = ({ screenId, socket }) => {
   const loadMessages = async () => {
     try {
       setLoading(true);
-      const response = await axios.get(`/api/screens/${screenId}/messages`);
+      const response = await api.get(`/api/screens/${screenId}/messages`);
       setMessages(response.data);
     } catch (error) {
       message.error('שגיאה בטעינת ההודעות');
@@ -72,10 +72,10 @@ const MessagesManager = ({ screenId, socket }) => {
   const handleSubmit = async (values) => {
     try {
       if (editingMessage) {
-        await axios.put(`/api/screens/${screenId}/messages/${editingMessage.id}`, values);
+        await api.put(`/api/screens/${screenId}/messages/${editingMessage.id}`, values);
         message.success('ההודעה עודכנה בהצלחה');
       } else {
-        await axios.post(`/api/screens/${screenId}/messages`, values);
+        await api.post(`/api/screens/${screenId}/messages`, values);
         message.success('ההודעה נוספה בהצלחה');
       }
 
@@ -92,7 +92,7 @@ const MessagesManager = ({ screenId, socket }) => {
 
   const handleDelete = async (messageId) => {
     try {
-      await axios.delete(`/api/screens/${screenId}/messages/${messageId}`);
+      await api.delete(`/api/screens/${screenId}/messages/${messageId}`);
       message.success('ההודעה נמחקה בהצלחה');
       loadMessages();
     } catch (error) {
@@ -103,17 +103,17 @@ const MessagesManager = ({ screenId, socket }) => {
   const handleEdit = (item) => {
     setEditingMessage(item);
     form.setFieldsValue({
-      message: item.message,
+      message: item.content,
       speed: item.speed
     });
-    setPreviewMessage(item.message);
+    setPreviewMessage(item.content);
     setPreviewSpeed(item.speed);
     setModalVisible(true);
   };
 
   const toggleMessageStatus = async (messageId, currentStatus) => {
     try {
-      await axios.patch(`/api/screens/${screenId}/messages/${messageId}`, {
+      await api.patch(`/api/screens/${screenId}/messages/${messageId}`, {
         is_active: currentStatus ? 0 : 1
       });
       message.success(currentStatus ? 'ההודעה הושבתה' : 'ההודעה הופעלה');
@@ -211,7 +211,7 @@ const MessagesManager = ({ screenId, socket }) => {
               title={
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={{ maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {item.message}
+                    {item.content}
                   </span>
                   {item.is_active ? (
                     <Tag color="green">פעיל</Tag>
@@ -240,7 +240,7 @@ const MessagesManager = ({ screenId, socket }) => {
                         whiteSpace: 'nowrap'
                       }}
                     >
-                      {item.message}
+                      {item.content}
                     </div>
                   </div>
                   <Text type="secondary" style={{ fontSize: 12 }}>

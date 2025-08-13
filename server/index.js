@@ -32,9 +32,11 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: ["http://localhost:3000", "http://localhost:3001"],
-    methods: ["GET", "POST"]
-  }
+    origin: ["http://localhost:3000", "http://localhost:3001", "http://127.0.0.1:3000"],
+    methods: ["GET", "POST"],
+    credentials: true
+  },
+  allowEIO3: true
 });
 
 // Add Socket.IO connection logging
@@ -59,10 +61,10 @@ const PORT = process.env.PORT || 3001;
 
 // Middleware
 app.use(cors({
-  origin: ['http://localhost:3000', 'http://localhost:3001'],
+  origin: ['http://localhost:3000', 'http://localhost:3001', 'http://127.0.0.1:3000'],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Cookie', 'Set-Cookie'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Cookie', 'Set-Cookie', 'X-Requested-With'],
   exposedHeaders: ['Content-Type', 'Content-Length', 'Set-Cookie']
 }));
 app.use(express.json());
@@ -110,15 +112,16 @@ app.use(session({
     table: 'sessions'
   }),
   secret: 'your-secret-key-change-this-in-production',
-  resave: true,
+  resave: false,
   saveUninitialized: false,
+  rolling: true,
   cookie: {
     secure: false, // Set to true in production with HTTPS
     httpOnly: true,
     sameSite: 'lax',
     maxAge: 24 * 60 * 60 * 1000 // 24 hours
   },
-  name: 'sid'
+  name: 'connect.sid'
 }));
 
 // Authentication middleware
@@ -192,9 +195,17 @@ db.serialize(() => {
     location TEXT,
     status TEXT DEFAULT 'active',
     last_seen DATETIME,
+    last_seen_timestamp INTEGER,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )`);
+  
+  // Add last_seen_timestamp column if it doesn't exist (for existing databases)
+  db.run('ALTER TABLE screens ADD COLUMN last_seen_timestamp INTEGER', (err) => {
+    if (err && !err.message.includes('duplicate column')) {
+      console.log('Error adding column (probably already exists):', err.message);
+    }
+  });
 
   // Content table
   db.run(`CREATE TABLE IF NOT EXISTS content (
@@ -259,6 +270,14 @@ db.serialize(() => {
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users (id),
     FOREIGN KEY (screen_id) REFERENCES screens (id)
+  )`);
+
+  // Function permissions table
+  db.run(`CREATE TABLE IF NOT EXISTS function_permissions (
+    user_id TEXT PRIMARY KEY,
+    functions TEXT,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users (id)
   )`);
 
   // User sessions table
@@ -372,22 +391,30 @@ app.post('/api/auth/login', async (req, res) => {
       logInfo(`Session ID: ${req.sessionID}`);
       logInfo(`Session data: ${JSON.stringify(req.session)}`);
       
-      // Log session
-      const sessionId = uuidv4();
-      db.run(
-        'INSERT INTO user_sessions (id, user_id, session_id, ip_address, user_agent, expires_at) VALUES (?, ?, ?, ?, ?, ?)',
-        [uuidv4(), user.id, sessionId, req.ip, req.get('User-Agent'), new Date(Date.now() + 24 * 60 * 60 * 1000)]
-      );
-      
-      res.json({
-        message: 'התחברות מוצלחת',
-        user: {
-          id: user.id,
-          username: user.username,
-          full_name: user.full_name,
-          email: user.email,
-          role: user.role
+      // Save session explicitly
+      req.session.save((err) => {
+        if (err) {
+          logError(err, 'שמירת session');
+          return res.status(500).json({ error: 'שגיאה בשמירת session' });
         }
+        
+        // Log session
+        const sessionId = uuidv4();
+        db.run(
+          'INSERT INTO user_sessions (id, user_id, session_id, ip_address, user_agent, expires_at) VALUES (?, ?, ?, ?, ?, ?)',
+          [uuidv4(), user.id, sessionId, req.ip, req.get('User-Agent'), new Date(Date.now() + 24 * 60 * 60 * 1000)]
+        );
+        
+        res.json({
+          message: 'התחברות מוצלחת',
+          user: {
+            id: user.id,
+            username: user.username,
+            full_name: user.full_name,
+            email: user.email,
+            role: user.role
+          }
+        });
       });
     } catch (error) {
       logError(error, 'התחברות - שגיאה כללית');
@@ -541,6 +568,57 @@ app.post('/api/screens', requireAuth, (req, res) => {
   );
 });
 
+// Update screen logo (admin only)
+app.put('/api/screens/:id/logo', requireAuth, (req, res) => {
+  logInfo('🖼️ בקשת עדכון לוגו מסך');
+  const { id } = req.params;
+  const { logo_url } = req.body;
+  
+  // Check if user is admin
+  db.get('SELECT role FROM users WHERE id = ?', [req.session.userId], (err, user) => {
+    if (err) {
+      logError(err, 'בדיקת הרשאות עדכון לוגו מסך');
+      return res.status(500).json({ error: 'שגיאה בבדיקת הרשאות' });
+    }
+    
+    if (user.role !== 'admin' && user.role !== 'super_admin') {
+      logError(`משתמש ${req.session.username} מנסה לעדכן לוגו מסך ללא הרשאה`, 'update-screen-logo');
+      return res.status(403).json({ error: 'אין לך הרשאה לעדכן לוגו מסך' });
+    }
+    
+    // Check if screen exists
+    db.get('SELECT logo_url as old_logo FROM screens WHERE id = ?', [id], (err, screen) => {
+      if (err) {
+        logError(err, 'בדיקת קיום מסך לעדכון לוגו');
+        return res.status(500).json({ error: 'שגיאה בבדיקת מסך' });
+      }
+      
+      if (!screen) {
+        logError(`מסך לא קיים: ${id}`, 'update-screen-logo');
+        return res.status(404).json({ error: 'מסך לא נמצא' });
+      }
+      
+      // Update screen logo
+      db.run('UPDATE screens SET logo_url = ? WHERE id = ?', [logo_url, id], (err) => {
+        if (err) {
+          logError(err, 'עדכון לוגו מסך');
+          return res.status(500).json({ error: 'שגיאה בעדכון לוגו' });
+        }
+        
+        logSuccess(`לוגו מסך עודכן בהצלחה: "${screen.old_logo}" -> "${logo_url}" (${id}) על ידי ${req.session.username}`);
+        
+        // Emit to all connected clients
+        io.emit('screen_logo_updated', { id, logo_url });
+        
+        res.json({
+          message: 'לוגו מסך עודכן בהצלחה',
+          logo_url
+        });
+      });
+    });
+  });
+});
+
 // Update screen name (admin only)
 app.put('/api/screens/:id/name', requireAuth, (req, res) => {
   logInfo('✏️ בקשת עדכון שם מסך');
@@ -598,6 +676,101 @@ app.put('/api/screens/:id/name', requireAuth, (req, res) => {
   });
 });
 
+// Delete screen endpoint (admin only)
+app.delete('/api/screens/:id', requireAuth, (req, res) => {
+  logInfo('🗑️ בקשת מחיקת מסך');
+  const { id } = req.params;
+  
+  // Check if user is admin
+  db.get('SELECT role FROM users WHERE id = ?', [req.session.userId], (err, user) => {
+    if (err) {
+      logError(err, 'בדיקת הרשאות מחיקת מסך');
+      return res.status(500).json({ error: 'שגיאה בבדיקת הרשאות' });
+    }
+    
+    if (!user || (user.role !== 'admin' && user.role !== 'super_admin')) {
+      logWarn(`🚫 ניסיון מחיקת מסך ללא הרשאה: ${req.session.userId}`);
+      return res.status(403).json({ error: 'אין הרשאה למחיקת מסכים' });
+    }
+    
+    // Get screen name for logging
+    db.get('SELECT name FROM screens WHERE id = ?', [id], (err, screen) => {
+      if (err) {
+        logError(err, 'טעינת פרטי מסך למחיקה');
+        return res.status(500).json({ error: 'שגיאה בטעינת פרטי המסך' });
+      }
+      
+      if (!screen) {
+        return res.status(404).json({ error: 'מסך לא נמצא' });
+      }
+      
+      // Start transaction to delete all related data
+      db.serialize(() => {
+        db.run('BEGIN TRANSACTION');
+        
+        // Delete all content for this screen
+        db.run('DELETE FROM content WHERE screen_id = ?', [id], (err) => {
+          if (err) {
+            db.run('ROLLBACK');
+            logError(err, 'מחיקת תוכן מסך');
+            return res.status(500).json({ error: 'שגיאה במחיקת תוכן המסך' });
+          }
+          
+          // Delete all RSS sources for this screen
+          db.run('DELETE FROM rss_sources WHERE screen_id = ?', [id], (err) => {
+            if (err) {
+              db.run('ROLLBACK');
+              logError(err, 'מחיקת RSS מסך');
+              return res.status(500).json({ error: 'שגיאה במחיקת חדשות המסך' });
+            }
+            
+            // Delete all running messages for this screen
+            db.run('DELETE FROM running_messages WHERE screen_id = ?', [id], (err) => {
+              if (err) {
+                db.run('ROLLBACK');
+                logError(err, 'מחיקת הודעות מסך');
+                return res.status(500).json({ error: 'שגיאה במחיקת הודעות המסך' });
+              }
+              
+              // Delete screen permissions
+              db.run('DELETE FROM screen_permissions WHERE screen_id = ?', [id], (err) => {
+                if (err) {
+                  db.run('ROLLBACK');
+                  logError(err, 'מחיקת הרשאות מסך');
+                  return res.status(500).json({ error: 'שגיאה במחיקת הרשאות המסך' });
+                }
+                
+                // Finally delete the screen itself
+                db.run('DELETE FROM screens WHERE id = ?', [id], function(err) {
+                  if (err) {
+                    db.run('ROLLBACK');
+                    logError(err, 'מחיקת מסך');
+                    return res.status(500).json({ error: 'שגיאה במחיקת המסך' });
+                  }
+                  
+                  db.run('COMMIT');
+                  logSuccess(`🗑️ מסך נמחק בהצלחה: ${screen.name} (${id})`);
+                  
+                  // Notify all clients about screen deletion
+                  io.emit('screen_deleted', { id });
+                  
+                  res.json({ 
+                    message: 'מסך נמחק בהצלחה',
+                    deletedScreen: {
+                      id,
+                      name: screen.name
+                    }
+                  });
+                });
+              });
+            });
+          });
+        });
+      });
+    });
+  });
+});
+
 app.get('/api/screens/:id', (req, res) => {
   const { id } = req.params;
   logInfo(`📺 בקשת מסך ספציפי: ${id}`);
@@ -609,12 +782,18 @@ app.get('/api/screens/:id', (req, res) => {
       return;
     }
     
+    if (row) {
+      console.log(`🔍 מסך נמצא בDB: ${id}`);
+      console.log(`📊 last_seen מהDB: ${row.last_seen} (typeof: ${typeof row.last_seen})`);
+    }
+    
     if (!row) {
       // Create screen automatically if it doesn't exist
       logInfo(`יצירת מסך חדש אוטומטית: ${id}`);
+      const creationTime = new Date().toISOString();
       db.run(
-        'INSERT INTO screens (id, name, location, logo_url) VALUES (?, ?, ?, ?)',
-        [id, `מסך ${id.substring(0, 8)}`, 'לא צוין', null],
+        'INSERT INTO screens (id, name, location, last_seen) VALUES (?, ?, ?, ?)',
+        [id, `מסך ${id.substring(0, 8)}`, 'לא צוין', creationTime],
         function(insertErr) {
           if (insertErr) {
             logError(insertErr, 'יצירת מסך אוטומטית');
@@ -622,8 +801,7 @@ app.get('/api/screens/:id', (req, res) => {
             return;
           }
           
-          // Update last seen for new screen
-          db.run('UPDATE screens SET last_seen = CURRENT_TIMESTAMP WHERE id = ?', [id]);
+          // הרשאות למנהלים נוצרות אוטומטית - לא מעדכנים last_seen
           
           // Give permissions to all admins for the new screen
           db.all('SELECT id FROM users WHERE role IN (?, ?)', ['admin', 'super_admin'], (err, admins) => {
@@ -655,19 +833,19 @@ app.get('/api/screens/:id', (req, res) => {
         }
       );
     } else {
-      // Update last seen for existing screen
-      db.run('UPDATE screens SET last_seen = CURRENT_TIMESTAMP WHERE id = ?', [id]);
+      // לא מעדכנים last_seen כשגושים למסך דרך הפאנל - רק דרך heartbeat
       logInfo(`מסך קיים נמצא: ${row.name} (${id})`);
       
-      // Convert last_seen to ISO format if it's in local format
       const screenData = { ...row };
+      console.log(`🔄 DB data - last_seen: ${screenData.last_seen}`);
+      
+      // תיקון הבעיה עם השעון המקומי של SQLite
       if (screenData.last_seen && !screenData.last_seen.includes('T')) {
-        // Convert local timestamp to ISO
-        const [datePart, timePart] = screenData.last_seen.split(' ');
-        const [year, month, day] = datePart.split('-');
-        const [hour, minute, second] = timePart.split(':');
-        const localDate = new Date(year, month - 1, day, hour, minute, second);
-        screenData.last_seen = localDate.toISOString();
+        // זה פורמט SQLite מקומי: YYYY-MM-DD HH:MM:SS
+        // SQLite שומר בזמן UTC אבל ללא סימון timezone
+        const sqliteTime = screenData.last_seen + 'Z'; // הוספת Z להגדרה כ-UTC
+        screenData.last_seen = new Date(sqliteTime).toISOString();
+        console.log(`🔄 תיקון זמן SQLite: ${screenData.last_seen}`);
       }
       
       res.json(screenData);
@@ -683,11 +861,13 @@ app.post('/api/screens/:id/heartbeat', (req, res) => {
   console.log(`📅 זמן: ${currentTime}`);
   console.log(`🆔 מזהה מסך: ${id}`);
   console.log(`🌐 IP: ${req.ip}`);
-  console.log(`📊 Headers:`, req.headers);
-  console.log(`📋 Body:`, req.body);
+  console.log(`📊 User-Agent: ${req.headers['user-agent']}`);
+  console.log(`📋 Content-Type: ${req.headers['content-type']}`);
   logInfo(`💓 heartbeat ממסך: ${id}`);
   
-  db.run('UPDATE screens SET last_seen = CURRENT_TIMESTAMP WHERE id = ?', [id], function(err) {
+  const currentTimeISO = new Date().toISOString();
+  console.log(`💓 מעדכן last_seen ל: ${currentTimeISO}`);
+  db.run('UPDATE screens SET last_seen = ? WHERE id = ?', [currentTimeISO, id], function(err) {
     if (err) {
       logError(err, 'heartbeat - עדכון מסך');
       res.status(500).json({ error: err.message });
@@ -697,16 +877,14 @@ app.post('/api/screens/:id/heartbeat', (req, res) => {
       // Screen doesn't exist, create it
       logInfo(`מסך לא קיים, יוצר חדש: ${id}`);
       db.run(
-        'INSERT INTO screens (id, name, location) VALUES (?, ?, ?)',
-        [id, `מסך ${id.substring(0, 8)}`, 'לא צוין'],
+        'INSERT INTO screens (id, name, location, last_seen) VALUES (?, ?, ?, ?)',
+        [id, `מסך ${id.substring(0, 8)}`, 'לא צוין', currentTimeISO],
         function(insertErr) {
           if (insertErr) {
             logError(insertErr, 'heartbeat - יצירת מסך');
             res.status(500).json({ error: insertErr.message });
             return;
           }
-          // Update last seen for new screen
-          db.run('UPDATE screens SET last_seen = CURRENT_TIMESTAMP WHERE id = ?', [id]);
           
           // Give permissions to all admins for the new screen
           db.all('SELECT id FROM users WHERE role IN (?, ?)', ['admin', 'super_admin'], (err, admins) => {
@@ -724,9 +902,11 @@ app.post('/api/screens/:id/heartbeat', (req, res) => {
           });
           
           logSuccess(`מסך נוצר ועודכן: ${id}`);
-          const currentTime = new Date().toISOString();
-          logInfo(`📡 שולח screen_status_updated: ${id} - ${currentTime}`);
-          io.emit('screen_status_updated', { id, last_seen: currentTime });
+                  const currentTime = new Date().toISOString();
+        console.log(`📡 שולח screen_status_updated: ${id} - ${currentTime}`);
+        console.log(`📊 זמן שנשלח בevent: ${currentTime}`);
+        logInfo(`📡 שולח screen_status_updated: ${id} - ${currentTime}`);
+        io.emit('screen_status_updated', { id, last_seen: currentTime });
           res.json({ message: 'מסך נוצר ועודכן', created: true });
         }
       );
@@ -1283,6 +1463,284 @@ app.get('/api/admin/permissions', requireAuth, (req, res) => {
   });
 });
 
+// Create new permission (admin only)
+app.post('/api/admin/permissions', requireAuth, (req, res) => {
+  logInfo('➕ בקשת יצירת הרשאה חדשה');
+  const { user_id, screen_id, permission_type } = req.body;
+  
+  // Check if user is admin
+  db.get('SELECT role FROM users WHERE id = ?', [req.session.userId], (err, user) => {
+    if (err) {
+      logError(err, 'בדיקת הרשאות יצירת הרשאה');
+      return res.status(500).json({ error: 'שגיאה בבדיקת הרשאות' });
+    }
+    
+    if (!user || (user.role !== 'admin' && user.role !== 'super_admin')) {
+      logWarn(`ניסיון יצירת הרשאה ללא הרשאה: ${req.session.userId}`);
+      return res.status(403).json({ error: 'אין לך הרשאה ליצור הרשאות' });
+    }
+    
+    const permissionId = uuidv4();
+    
+    db.run(
+      'INSERT OR REPLACE INTO screen_permissions (id, user_id, screen_id, permission_type, created_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)',
+      [permissionId, user_id, screen_id, permission_type],
+      function(err) {
+        if (err) {
+          logError(err, 'יצירת הרשאה חדשה');
+          return res.status(500).json({ error: 'שגיאה ביצירת ההרשאה' });
+        }
+        
+        logSuccess(`הרשאה חדשה נוצרה: ${permission_type} למשתמש ${user_id} במסך ${screen_id}`);
+        res.json({ 
+          message: 'הרשאה נוצרה בהצלחה',
+          id: permissionId
+        });
+      }
+    );
+  });
+});
+
+// Update permission (admin only)
+app.put('/api/admin/permissions/:permissionId', requireAuth, (req, res) => {
+  logInfo('✏️ בקשת עדכון הרשאה');
+  const { permissionId } = req.params;
+  const { permission_type } = req.body;
+  
+  // Check if user is admin
+  db.get('SELECT role FROM users WHERE id = ?', [req.session.userId], (err, user) => {
+    if (err) {
+      logError(err, 'בדיקת הרשאות עדכון הרשאה');
+      return res.status(500).json({ error: 'שגיאה בבדיקת הרשאות' });
+    }
+    
+    if (!user || (user.role !== 'admin' && user.role !== 'super_admin')) {
+      logWarn(`ניסיון עדכון הרשאה ללא הרשאה: ${req.session.userId}`);
+      return res.status(403).json({ error: 'אין לך הרשאה לעדכן הרשאות' });
+    }
+    
+    db.run(
+      'UPDATE screen_permissions SET permission_type = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      [permission_type, permissionId],
+      function(err) {
+        if (err) {
+          logError(err, 'עדכון הרשאה');
+          return res.status(500).json({ error: 'שגיאה בעדכון ההרשאה' });
+        }
+        
+        if (this.changes === 0) {
+          return res.status(404).json({ error: 'הרשאה לא נמצאה' });
+        }
+        
+        logSuccess(`הרשאה עודכנה: ${permissionId} → ${permission_type}`);
+        res.json({ message: 'הרשאה עודכנה בהצלחה' });
+      }
+    );
+  });
+});
+
+// Delete permission (admin only)
+app.delete('/api/admin/permissions/:permissionId', requireAuth, (req, res) => {
+  logInfo('🗑️ בקשת מחיקת הרשאה');
+  const { permissionId } = req.params;
+  
+  // Check if user is admin
+  db.get('SELECT role FROM users WHERE id = ?', [req.session.userId], (err, user) => {
+    if (err) {
+      logError(err, 'בדיקת הרשאות מחיקת הרשאה');
+      return res.status(500).json({ error: 'שגיאה בבדיקת הרשאות' });
+    }
+    
+    if (!user || (user.role !== 'admin' && user.role !== 'super_admin')) {
+      logWarn(`ניסיון מחיקת הרשאה ללא הרשאה: ${req.session.userId}`);
+      return res.status(403).json({ error: 'אין לך הרשאה למחוק הרשאות' });
+    }
+    
+    db.run(
+      'DELETE FROM screen_permissions WHERE id = ?',
+      [permissionId],
+      function(err) {
+        if (err) {
+          logError(err, 'מחיקת הרשאה');
+          return res.status(500).json({ error: 'שגיאה במחיקת ההרשאה' });
+        }
+        
+        if (this.changes === 0) {
+          return res.status(404).json({ error: 'הרשאה לא נמצאה' });
+        }
+        
+        logSuccess(`הרשאה נמחקה: ${permissionId}`);
+        res.json({ message: 'הרשאה נמחקה בהצלחה' });
+      }
+    );
+  });
+});
+
+// Function permissions endpoints
+
+// Get all function permissions (admin only)
+app.get('/api/admin/function-permissions', requireAuth, (req, res) => {
+  logInfo('🔧 בקשת רשימת הרשאות פונקציות');
+  
+  // Check if user is admin
+  db.get('SELECT role FROM users WHERE id = ?', [req.session.userId], (err, user) => {
+    if (err) {
+      logError(err, 'בדיקת הרשאות הרשאות פונקציות');
+      return res.status(500).json({ error: 'שגיאה בבדיקת הרשאות' });
+    }
+    
+    if (!user || (user.role !== 'admin' && user.role !== 'super_admin')) {
+      return res.status(403).json({ error: 'אין לך הרשאה לגשת להרשאות פונקציות' });
+    }
+    
+    // Get all users with their function permissions
+    db.all(`
+      SELECT 
+        u.id as user_id,
+        u.username,
+        u.full_name,
+        fp.functions,
+        fp.updated_at
+      FROM users u
+      LEFT JOIN function_permissions fp ON u.id = fp.user_id
+      WHERE u.role NOT IN ('admin', 'super_admin') AND u.is_active = 1
+      ORDER BY u.username
+    `, (err, permissions) => {
+      if (err) {
+        logError(err, 'טעינת הרשאות פונקציות');
+        return res.status(500).json({ error: 'שגיאה בטעינת הרשאות פונקציות' });
+      }
+      
+      // Parse functions JSON
+      const parsedPermissions = permissions.map(perm => ({
+        ...perm,
+        functions: perm.functions ? JSON.parse(perm.functions) : []
+      }));
+      
+      logSuccess(`נטענו הרשאות פונקציות עבור ${parsedPermissions.length} משתמשים`);
+      res.json(parsedPermissions);
+    });
+  });
+});
+
+// Create/Update function permissions (admin only)
+app.post('/api/admin/function-permissions', requireAuth, (req, res) => {
+  logInfo('➕ בקשת יצירת הרשאות פונקציות');
+  const { user_id, functions } = req.body;
+  
+  // Check if user is admin
+  db.get('SELECT role FROM users WHERE id = ?', [req.session.userId], (err, user) => {
+    if (err) {
+      logError(err, 'בדיקת הרשאות יצירת הרשאות פונקציות');
+      return res.status(500).json({ error: 'שגיאה בבדיקת הרשאות' });
+    }
+    
+    if (!user || (user.role !== 'admin' && user.role !== 'super_admin')) {
+      return res.status(403).json({ error: 'אין לך הרשאה ליצור הרשאות פונקציות' });
+    }
+    
+    const functionsJson = JSON.stringify(functions || []);
+    
+    db.run(
+      'INSERT OR REPLACE INTO function_permissions (user_id, functions, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)',
+      [user_id, functionsJson],
+      function(err) {
+        if (err) {
+          logError(err, 'יצירת הרשאות פונקציות');
+          return res.status(500).json({ error: 'שגיאה ביצירת הרשאות הפונקציות' });
+        }
+        
+        logSuccess(`הרשאות פונקציות נוצרו למשתמש ${user_id}: ${functions?.join(', ')}`);
+        res.json({ message: 'הרשאות פונקציות נוצרו בהצלחה' });
+      }
+    );
+  });
+});
+
+// Update function permissions (admin only)
+app.put('/api/admin/function-permissions/:userId', requireAuth, (req, res) => {
+  logInfo('✏️ בקשת עדכון הרשאות פונקציות');
+  const { userId } = req.params;
+  const { functions } = req.body;
+  
+  // Check if user is admin
+  db.get('SELECT role FROM users WHERE id = ?', [req.session.userId], (err, user) => {
+    if (err) {
+      logError(err, 'בדיקת הרשאות עדכון הרשאות פונקציות');
+      return res.status(500).json({ error: 'שגיאה בבדיקת הרשאות' });
+    }
+    
+    if (!user || (user.role !== 'admin' && user.role !== 'super_admin')) {
+      return res.status(403).json({ error: 'אין לך הרשאה לעדכן הרשאות פונקציות' });
+    }
+    
+    const functionsJson = JSON.stringify(functions || []);
+    
+    db.run(
+      'UPDATE function_permissions SET functions = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?',
+      [functionsJson, userId],
+      function(err) {
+        if (err) {
+          logError(err, 'עדכון הרשאות פונקציות');
+          return res.status(500).json({ error: 'שגיאה בעדכון הרשאות הפונקציות' });
+        }
+        
+        if (this.changes === 0) {
+          // Create new if not exists
+          db.run(
+            'INSERT INTO function_permissions (user_id, functions, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)',
+            [userId, functionsJson],
+            function(err) {
+              if (err) {
+                logError(err, 'יצירת הרשאות פונקציות חדשות');
+                return res.status(500).json({ error: 'שגיאה ביצירת הרשאות הפונקציות' });
+              }
+              
+              logSuccess(`הרשאות פונקציות חדשות נוצרו למשתמש ${userId}`);
+              res.json({ message: 'הרשאות פונקציות עודכנו בהצלחה' });
+            }
+          );
+        } else {
+          logSuccess(`הרשאות פונקציות עודכנו למשתמש ${userId}`);
+          res.json({ message: 'הרשאות פונקציות עודכנו בהצלחה' });
+        }
+      }
+    );
+  });
+});
+
+// Delete function permissions (admin only)
+app.delete('/api/admin/function-permissions/:userId', requireAuth, (req, res) => {
+  logInfo('🗑️ בקשת מחיקת הרשאות פונקציות');
+  const { userId } = req.params;
+  
+  // Check if user is admin
+  db.get('SELECT role FROM users WHERE id = ?', [req.session.userId], (err, user) => {
+    if (err) {
+      logError(err, 'בדיקת הרשאות מחיקת הרשאות פונקציות');
+      return res.status(500).json({ error: 'שגיאה בבדיקת הרשאות' });
+    }
+    
+    if (!user || (user.role !== 'admin' && user.role !== 'super_admin')) {
+      return res.status(403).json({ error: 'אין לך הרשאה למחוק הרשאות פונקציות' });
+    }
+    
+    db.run(
+      'DELETE FROM function_permissions WHERE user_id = ?',
+      [userId],
+      function(err) {
+        if (err) {
+          logError(err, 'מחיקת הרשאות פונקציות');
+          return res.status(500).json({ error: 'שגיאה במחיקת הרשאות הפונקציות' });
+        }
+        
+        logSuccess(`הרשאות פונקציות נמחקו למשתמש ${userId}`);
+        res.json({ message: 'הרשאות פונקציות נמחקו בהצלחה' });
+      }
+    );
+  });
+});
+
 // Socket.IO for real-time updates
 io.on('connection', (socket) => {
   console.log('Screen connected:', socket.id);
@@ -1320,7 +1778,7 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'שגיאה בשרת' });
 });
 
-server.listen(PORT, '0.0.0.0', () => {
+server.listen(PORT, () => {
   logSuccess(`🚀 שרת מסכים דיגיטליים רץ על פורט ${PORT}`);
   logSuccess(`📱 פאנל ניהול: http://localhost:${PORT}/admin`);
   logSuccess(`🖥️  מסך לקוח: http://localhost:${PORT}/client`);
@@ -1328,6 +1786,6 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`\n🌐 === SERVER STARTED ===`);
   console.log(`📅 זמן: ${new Date().toISOString()}`);
   console.log(`🔗 פורט: ${PORT}`);
-  console.log(`🌍 מאזין על: 0.0.0.0:${PORT}`);
+  console.log(`🌍 מאזין על: IPv4 + IPv6 פורט ${PORT}`);
   console.log(`✅ השרת מוכן לקבל בקשות`);
 });

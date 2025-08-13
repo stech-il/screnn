@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, Row, Col, Typography, Button, Spin, Empty, Tag, Space, Popconfirm, message, Modal, Input } from 'antd';
 import { PlusOutlined, DesktopOutlined, EyeOutlined, ReloadOutlined, DeleteOutlined, PictureOutlined, EditOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import api from '../utils/axios';
 
 const { Title, Text } = Typography;
 
@@ -49,7 +49,7 @@ const ScreensList = ({ screens, loading, onRefresh, user, socket }) => {
 
   const handleDeleteScreen = async (screenId, screenName) => {
     try {
-      await axios.delete(`/api/screens/${screenId}`);
+      await api.delete(`/api/screens/${screenId}`);
       message.success(`מסך "${screenName}" נמחק בהצלחה!`);
       if (onRefresh) {
         await onRefresh();
@@ -65,7 +65,7 @@ const ScreensList = ({ screens, loading, onRefresh, user, socket }) => {
     
     try {
       setLogoLoading(true);
-      await axios.put(`/api/screens/${selectedScreen.id}/logo`, { logo_url: logoUrl });
+      await api.put(`/api/screens/${selectedScreen.id}/logo`, { logo_url: logoUrl });
       message.success(`לוגו עודכן בהצלחה למסך "${selectedScreen.name}"!`);
       setLogoModalVisible(false);
       setSelectedScreen(null);
@@ -86,7 +86,7 @@ const ScreensList = ({ screens, loading, onRefresh, user, socket }) => {
     
     try {
       setNameLoading(true);
-      await axios.put(`/api/screens/${selectedScreen.id}/name`, { name: screenName.trim() });
+      await api.put(`/api/screens/${selectedScreen.id}/name`, { name: screenName.trim() });
       message.success(`שם המסך עודכן בהצלחה ל"${screenName.trim()}"!`);
       setNameModalVisible(false);
       setSelectedScreen(null);
