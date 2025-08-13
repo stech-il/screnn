@@ -2,10 +2,12 @@ import { io } from 'socket.io-client';
 
 console.log('🔧 יוצר Socket.IO connection...');
 
-const socket = io('http://localhost:3001', {
+const baseUrl = typeof window !== 'undefined' ? window.location.origin : undefined;
+const socket = io(baseUrl, {
   transports: ['websocket'],
   autoConnect: true,
-  withCredentials: true
+  withCredentials: true,
+  path: '/socket.io'
 });
 
 console.log('🔧 Socket.IO instance נוצר:', socket);
