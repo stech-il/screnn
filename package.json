@@ -4,7 +4,7 @@
   "description": "מערכת מסכים דיגיטליים עם שרת, פאנל ניהול ותוכנה למחשב",
   "main": "index.js",
   "scripts": {
-    "start": "node server/index.js",
+    "start": "node start-prod.js",
     "dev": "concurrently \"npm run server:dev\" \"npm run admin:dev\" \"npm run client:dev\"",
     "server:dev": "nodemon server/index.js",
     "admin:dev": "cd admin-panel && npm run start:win",
