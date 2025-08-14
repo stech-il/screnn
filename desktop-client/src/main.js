@@ -418,6 +418,20 @@ async function loadLocalData() {
 }
 
 // הגדרת מזהה מסך
+function loadScreenIdFromStorage() {
+  try {
+    let id = store.get('screenId');
+    if (!id && fs.existsSync(screenIdFile)) {
+      id = String(fs.readFileSync(screenIdFile, 'utf8')).trim();
+      if (id) console.log('📄 screenId טעון מהקובץ בעת דרישה');
+    }
+    return id || null;
+  } catch (e) {
+    console.error('❌ שגיאה בטעינת screenId בעת דרישה:', e);
+    return null;
+  }
+}
+
 function setupScreenId() {
   console.log('🔧 מגדיר מזהה מסך...');
   
@@ -518,6 +532,10 @@ ipcMain.handle('sync-now', async () => {
 });
 
 ipcMain.handle('get-screen-id', () => {
+  if (!screenId) {
+    screenId = loadScreenIdFromStorage();
+    if (screenId) console.log('📥 get-screen-id: נטען מזהה קיים מהאחסון');
+  }
   return screenId;
 });
 
