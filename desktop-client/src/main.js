@@ -14,6 +14,19 @@ const { autoUpdater } = require('electron-updater');
 // הגדרות אפליקציה
 const isDev = process.env.NODE_ENV === 'development';
 
+// ודא מופע יחיד כדי למנוע התנגשויות בנתוני אחסון
+const gotLock = app.requestSingleInstanceLock();
+if (!gotLock) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+    }
+  });
+}
+
 // אחסון מקומי - שם קבוע כדי שהנתונים יישמרו עקבי בין גרסאות/סביבות
 const store = new Store({ name: 'digitlex-config' });
 console.log('📁 electron-store path:', store.path);
@@ -45,6 +58,7 @@ app.commandLine.appendSwitch('disable-software-rasterizer');
 const userDataPath = app.getPath('userData');
 const mediaPath = path.join(userDataPath, 'media');
 const dataPath = path.join(userDataPath, 'data');
+const screenIdFile = path.join(userDataPath, 'screen-id.txt');
 
 // יצירת תיקיות אם לא קיימות
 fs.ensureDirSync(mediaPath);
@@ -409,6 +423,16 @@ function setupScreenId() {
   
   // ניסיון לטעון מזהה שמור
   screenId = store.get('screenId');
+  if (!screenId) {
+    try {
+      if (fs.existsSync(screenIdFile)) {
+        screenId = String(fs.readFileSync(screenIdFile, 'utf8')).trim();
+        console.log('📄 screenId נטען מהקובץ:', screenIdFile);
+      }
+    } catch (e) {
+      console.error('❌ שגיאה בטעינת screenId מהקובץ:', e);
+    }
+  }
   console.log('📋 מזהה שמור:', screenId);
   
   if (!screenId) {
@@ -440,7 +464,14 @@ ipcMain.handle('set-screen-id', async (event, id) => {
     store.set('screenId', screenId);
     console.log('💾 screenId נשמר אל:', store.path);
   } catch (e) {
-    console.error('❌ שגיאה בשמירת screenId:', e);
+    console.error('❌ שגיאה בשמירת screenId ל‑store:', e);
+  }
+  try {
+    fs.ensureDirSync(userDataPath);
+    fs.writeFileSync(screenIdFile, screenId, 'utf8');
+    console.log('💾 screenId נשמר גם אל קובץ:', screenIdFile);
+  } catch (e) {
+    console.error('❌ שגיאה בשמירת screenId לקובץ:', e);
   }
   console.log(`✅ מזהה מסך נשמר: ${screenId}`);
   
