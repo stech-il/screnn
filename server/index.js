@@ -283,6 +283,12 @@ db.serialize(() => {
     FOREIGN KEY (user_id) REFERENCES users (id)
   )`);
 
+  // Application settings (key/value)
+  db.run(`CREATE TABLE IF NOT EXISTS app_settings (
+    key TEXT PRIMARY KEY,
+    value TEXT
+  )`);
+
   // Screen permissions table
   db.run(`CREATE TABLE IF NOT EXISTS screen_permissions (
     id TEXT PRIMARY KEY,
@@ -466,14 +472,28 @@ app.post('/api/auth/forgot', (req, res) => {
         if (insertErr) return res.status(500).json({ error: 'שגיאה ביצירת בקשת איפוס' });
 
         try {
+          // Load SMTP settings from env or DB settings
+          const settings = await new Promise((resolve) => {
+            db.all('SELECT key, value FROM app_settings WHERE key IN ("SMTP_USER","SMTP_PASS","SMTP_FROM")', (e, rows) => {
+              const map = Object.fromEntries((rows || []).map(r => [r.key, r.value]));
+              resolve(map);
+            });
+          });
+          const smtpUser = process.env.SMTP_USER || settings.SMTP_USER;
+          const smtpPass = process.env.SMTP_PASS || settings.SMTP_PASS;
+          const smtpFrom = process.env.SMTP_FROM || settings.SMTP_FROM || smtpUser;
           const transporter = nodemailer.createTransport({
             service: 'gmail',
-            auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
+            auth: { user: smtpUser, pass: smtpPass }
           });
-          const baseUrl = process.env.PUBLIC_URL || `http://localhost:${PORT}`;
+          const baseUrl = process.env.PUBLIC_URL || await new Promise((resolve) => {
+            db.get('SELECT value FROM app_settings WHERE key = ?', ['PUBLIC_URL'], (e, row) => {
+              resolve((row && row.value) || `http://localhost:${PORT}`);
+            });
+          });
           const resetUrl = `${baseUrl}/admin/reset?token=${encodeURIComponent(token)}`;
           await transporter.sendMail({
-            from: process.env.SMTP_FROM || process.env.SMTP_USER,
+            from: smtpFrom,
             to: user.email,
             subject: 'איפוס סיסמה - Digitlex',
             html: `<p>שלום ${user.username},</p><p>כדי לאפס סיסמה לחץ על הקישור:</p><p><a href="${resetUrl}">${resetUrl}</a></p><p>הקישור תקף לשעה.</p>`
@@ -1429,6 +1449,45 @@ app.get('/api/admin/users', requireAuth, (req, res) => {
       
       logSuccess(`נטענו ${users.length} משתמשים למנהל`);
       res.json(users);
+    });
+  });
+});
+
+// Settings endpoints (admin only)
+app.get('/api/admin/settings', requireAuth, (req, res) => {
+  db.get('SELECT role FROM users WHERE id = ?', [req.session.userId], (err, user) => {
+    if (err) return res.status(500).json({ error: 'שגיאה בבדיקת הרשאות' });
+    if (!user || (user.role !== 'admin' && user.role !== 'super_admin')) {
+      return res.status(403).json({ error: 'אין לך הרשאה לגשת להגדרות' });
+    }
+    db.all('SELECT key, value FROM app_settings', (e, rows) => {
+      if (e) return res.status(500).json({ error: 'שגיאה בטעינת הגדרות' });
+      const settings = Object.fromEntries((rows || []).map(r => [r.key, r.value]));
+      res.json(settings);
+    });
+  });
+});
+
+app.post('/api/admin/settings', requireAuth, (req, res) => {
+  db.get('SELECT role FROM users WHERE id = ?', [req.session.userId], (err, user) => {
+    if (err) return res.status(500).json({ error: 'שגיאה בבדיקת הרשאות' });
+    if (!user || (user.role !== 'admin' && user.role !== 'super_admin')) {
+      return res.status(403).json({ error: 'אין לך הרשאה לעדכן הגדרות' });
+    }
+
+    const allowedKeys = ['PUBLIC_URL', 'SMTP_USER', 'SMTP_PASS', 'SMTP_FROM', 'DATA_DIR'];
+    const entries = Object.entries(req.body || {}).filter(([k]) => allowedKeys.includes(k));
+    if (entries.length === 0) return res.json({ message: 'אין שינויים' });
+
+    db.serialize(() => {
+      const stmt = db.prepare('INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value');
+      for (const [k, v] of entries) {
+        stmt.run(k, v == null ? '' : String(v));
+      }
+      stmt.finalize((e) => {
+        if (e) return res.status(500).json({ error: 'שגיאה בשמירת הגדרות' });
+        res.json({ message: 'הגדרות נשמרו' });
+      });
     });
   });
 });

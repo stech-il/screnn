@@ -25,6 +25,7 @@ import ResetPassword from './components/auth/ResetPassword';
 import UserManagement from './components/UserManagement';
 import PermissionsManager from './components/PermissionsManager';
 import FunctionPermissionsManager from './components/FunctionPermissionsManager';
+import Settings from './components/Settings';
 import socket from './components/socket';
 
 const { Header, Sider, Content } = Layout;
@@ -237,6 +238,12 @@ function App() {
       icon: <SettingOutlined />,
       label: 'הרשאות פונקציות'
     });
+
+    menuItems.push({
+      key: '/settings',
+      icon: <SettingOutlined />,
+      label: 'הגדרות מערכת'
+    });
   }
 
   const handleMenuClick = ({ key }) => {
@@ -388,6 +395,16 @@ function App() {
               element={
                 (user.role === 'admin' || user.role === 'super_admin') ? (
                   <FunctionPermissionsManager socket={socket} />
+                ) : (
+                  <div>אין לך הרשאה לגשת לעמוד זה</div>
+                )
+              } 
+            />
+            <Route 
+              path="/settings" 
+              element={
+                (user.role === 'admin' || user.role === 'super_admin') ? (
+                  <Settings />
                 ) : (
                   <div>אין לך הרשאה לגשת לעמוד זה</div>
                 )
