@@ -28,7 +28,7 @@ import FunctionPermissionsManager from './components/FunctionPermissionsManager'
 import Settings from './components/Settings';
 import socket from './components/socket';
 
-const { Header, Sider, Content } = Layout;
+const { Header, Sider, Content, Footer } = Layout;
 const { Title } = Typography;
 
 function App() {
@@ -412,6 +412,9 @@ function App() {
             />
           </Routes>
         </Content>
+        <Footer style={{ textAlign: 'center', background: '#fff' }}>
+          נבנה ע"י שי טכנולוגיות 2025 | טל: 052-4521527
+        </Footer>
       </Layout>
     </Layout>
   );
