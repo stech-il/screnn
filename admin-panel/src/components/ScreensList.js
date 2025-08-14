@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Row, Col, Typography, Button, Spin, Empty, Tag, Space, Popconfirm, message, Modal, Input } from 'antd';
+import { Card, Row, Col, Typography, Button, Spin, Empty, Tag, Space, Popconfirm, message, Modal, Input, List, Grid } from 'antd';
 import { PlusOutlined, DesktopOutlined, EyeOutlined, ReloadOutlined, DeleteOutlined, PictureOutlined, EditOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import api from '../utils/axios';
@@ -8,6 +8,8 @@ const { Title, Text } = Typography;
 
 const ScreensList = ({ screens, loading, onRefresh, user, socket }) => {
   const navigate = useNavigate();
+  const screensBreakpoint = Grid.useBreakpoint();
+  const isMobile = !screensBreakpoint.md; // עד 768px נחשב מובייל
   const [logoModalVisible, setLogoModalVisible] = useState(false);
   const [nameModalVisible, setNameModalVisible] = useState(false);
   const [selectedScreen, setSelectedScreen] = useState(null);
@@ -182,36 +184,21 @@ const ScreensList = ({ screens, loading, onRefresh, user, socket }) => {
         display: 'flex', 
         justifyContent: 'space-between', 
         alignItems: 'center', 
-        marginBottom: 24 
+        marginBottom: isMobile ? 16 : 24 
       }}>
-        <Title level={2} style={{ margin: 0 }}>
+        <Title level={isMobile ? 3 : 2} style={{ margin: 0 }}>
           <DesktopOutlined style={{ marginLeft: 8 }} />
           רשימת מסכים
         </Title>
-        <Space>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <div style={{ 
-              width: '8px', 
-              height: '8px', 
-              borderRadius: '50%', 
-              backgroundColor: '#52c41a',
-              animation: 'pulse 2s infinite'
-            }} />
-            <Text type="secondary" style={{ fontSize: '12px' }}>מתעדכן אוטומטית כל 10 שניות</Text>
+        <Space wrap>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#52c41a', animation: 'pulse 2s infinite' }} />
+            {!isMobile && (<Text type="secondary" style={{ fontSize: 12 }}>מתעדכן אוטומטית כל 10 שניות</Text>)}
           </div>
-          <Button 
-            icon={<ReloadOutlined />} 
-            onClick={onRefresh}
-          >
-            רענן
-          </Button>
+          <Button size={isMobile ? 'small' : 'middle'} icon={<ReloadOutlined />} onClick={onRefresh}>רענן</Button>
           {(user?.role === 'admin' || user?.role === 'super_admin') && (
-            <Button 
-              type="primary" 
-              icon={<PlusOutlined />}
-              onClick={() => navigate('/create')}
-            >
-              הוסף מסך חדש
+            <Button size={isMobile ? 'small' : 'middle'} type="primary" icon={<PlusOutlined />} onClick={() => navigate('/create')}>
+              {isMobile ? 'מסך חדש' : 'הוסף מסך חדש'}
             </Button>
           )}
         </Space>
@@ -235,113 +222,84 @@ const ScreensList = ({ screens, loading, onRefresh, user, socket }) => {
           )}
         </Empty>
       ) : (
-        <Row gutter={[12, 12]}>
-          {screens.map(screen => {
-            const status = getScreenStatus(screen.last_seen);
-            
-            return (
-              <Col xs={24} sm={12} lg={8} xl={6} key={screen.id}>
-                <Card
-                  className="screen-card"
-                  hoverable
-                  onClick={() => navigate(`/screen/${screen.id}`)}
-                  actions={[
-                    <EyeOutlined key="view" onClick={(e) => {
-                      e.stopPropagation();
-                      navigate(`/screen/${screen.id}`);
-                    }} />,
-                    // Show edit name button only for admin users
-                    (user?.role === 'admin' || user?.role === 'super_admin') && (
-                      <EditOutlined 
-                        key="edit"
-                        style={{ color: '#52c41a' }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openNameModal(screen);
-                        }}
-                      />
-                    ),
-                    // Show logo button only for admin users
-                    (user?.role === 'admin' || user?.role === 'super_admin') && (
-                      <PictureOutlined 
-                        key="logo"
-                        style={{ color: '#1890ff' }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openLogoModal(screen);
-                        }}
-                      />
-                    ),
-                    // Show delete button only for admin users
-                    (user?.role === 'admin' || user?.role === 'super_admin') && (
-                      <Popconfirm
-                        key="delete"
-                        title={`האם אתה בטוח שברצונך למחוק את המסך "${screen.name}"?`}
-                        description="פעולה זו תמחק את המסך ואת כל התוכן שלו לצמיתות."
-                        onConfirm={() => handleDeleteScreen(screen.id, screen.name)}
-                        okText="כן, מחק"
-                        cancelText="ביטול"
-                        okType="danger"
-                      >
-                        <DeleteOutlined 
-                          style={{ color: '#ff4d4f' }}
-                          onClick={(e) => e.stopPropagation()}
-                        />
-                      </Popconfirm>
-                    )
-                  ].filter(Boolean)}
-                >
-                  <Card.Meta
-                    avatar={
-                      <div style={{ 
-                        width: 40, 
-                        height: 40, 
-                        background: '#1890ff', 
-                        borderRadius: '50%',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: 'white',
-                        fontSize: 16
-                      }}>
+        isMobile ? (
+          <List
+            itemLayout="vertical"
+            dataSource={screens}
+            renderItem={(screen) => {
+              const status = getScreenStatus(screen.last_seen);
+              return (
+                <List.Item key={screen.id} style={{ background: '#fff', borderRadius: 8, padding: 12 }} onClick={() => navigate(`/screen/${screen.id}`)}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#1890ff', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <DesktopOutlined />
                       </div>
-                    }
-                    title={
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <span>{screen.name}</span>
-                        <div style={{ display: 'flex', gap: 4 }}>
-                          {screen.permission_type && (
-                            <Tag color={getPermissionColor(screen.permission_type)}>
-                              {getPermissionText(screen.permission_type)}
-                            </Tag>
-                          )}
-                          <Tag color={status.color}>{status.text}</Tag>
-                        </div>
-                      </div>
-                    }
-                    description={
                       <div>
-                        <div style={{ marginBottom: 8 }}>
-                          <Text type="secondary">מיקום: </Text>
-                          <Text>{screen.location || 'לא צוין'}</Text>
-                        </div>
-                        <div style={{ marginBottom: 8 }}>
-                          <Text type="secondary">מזהה: </Text>
-                          <Text code copyable>{screen.id}</Text>
-                        </div>
-                        <div>
-                          <Text type="secondary">חיבור אחרון: </Text>
-                          <Text>{formatLastSeen(screen.last_seen)}</Text>
-                        </div>
+                        <div style={{ fontWeight: 600 }}>{screen.name}</div>
+                        <div style={{ fontSize: 12, color: '#666' }}>מזהה: {screen.id.slice(0,8)} • {formatLastSeen(screen.last_seen)}</div>
                       </div>
-                    }
-                  />
-                </Card>
-              </Col>
-            );
-          })}
-        </Row>
+                    </div>
+                    <div>
+                      <Tag color={status.color}>{status.text}</Tag>
+                    </div>
+                  </div>
+                  <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <Button size="small" onClick={(e) => { e.stopPropagation(); navigate(`/screen/${screen.id}`); }}>פרטים</Button>
+                    {(user?.role === 'admin' || user?.role === 'super_admin') && (
+                      <>
+                        <Button size="small" onClick={(e) => { e.stopPropagation(); openNameModal(screen); }}>שם</Button>
+                        <Button size="small" onClick={(e) => { e.stopPropagation(); openLogoModal(screen); }}>לוגו</Button>
+                        <Popconfirm
+                          title={`למחוק את "${screen.name}"?`}
+                          onConfirm={() => handleDeleteScreen(screen.id, screen.name)}
+                          okText="מחק" cancelText="ביטול" okType="danger"
+                        >
+                          <Button size="small" danger onClick={(e) => e.stopPropagation()}>מחק</Button>
+                        </Popconfirm>
+                      </>
+                    )}
+                  </div>
+                </List.Item>
+              );
+            }}
+          />
+        ) : (
+          <Row gutter={[12, 12]}>
+            {screens.map(screen => {
+              const status = getScreenStatus(screen.last_seen);
+              return (
+                <Col xs={24} sm={12} lg={8} xl={6} key={screen.id}>
+                  <Card
+                    className="screen-card"
+                    hoverable
+                    onClick={() => navigate(`/screen/${screen.id}`)}
+                    actions={[
+                      <EyeOutlined key="view" onClick={(e) => { e.stopPropagation(); navigate(`/screen/${screen.id}`); }} />,
+                      (user?.role === 'admin' || user?.role === 'super_admin') && (
+                        <EditOutlined key="edit" style={{ color: '#52c41a' }} onClick={(e) => { e.stopPropagation(); openNameModal(screen); }} />
+                      ),
+                      (user?.role === 'admin' || user?.role === 'super_admin') && (
+                        <PictureOutlined key="logo" style={{ color: '#1890ff' }} onClick={(e) => { e.stopPropagation(); openLogoModal(screen); }} />
+                      ),
+                      (user?.role === 'admin' || user?.role === 'super_admin') && (
+                        <Popconfirm key="delete" title={`האם אתה בטוח שברצונך למחוק את המסך "${screen.name}"?`} onConfirm={() => handleDeleteScreen(screen.id, screen.name)} okText="כן, מחק" cancelText="ביטול" okType="danger">
+                          <DeleteOutlined style={{ color: '#ff4d4f' }} onClick={(e) => e.stopPropagation()} />
+                        </Popconfirm>
+                      )
+                    ].filter(Boolean)}
+                  >
+                    <Card.Meta
+                      avatar={<div style={{ width: 40, height: 40, background: '#1890ff', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: 16 }}><DesktopOutlined /></div>}
+                      title={<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}><span>{screen.name}</span><div style={{ display: 'flex', gap: 4 }}>{screen.permission_type && (<Tag color={getPermissionColor(screen.permission_type)}>{getPermissionText(screen.permission_type)}</Tag>)}<Tag color={status.color}>{status.text}</Tag></div></div>}
+                      description={<div><div style={{ marginBottom: 8 }}><Text type="secondary">מיקום: </Text><Text>{screen.location || 'לא צוין'}</Text></div><div style={{ marginBottom: 8 }}><Text type="secondary">מזהה: </Text><Text code copyable>{screen.id}</Text></div><div><Text type="secondary">חיבור אחרון: </Text><Text>{formatLastSeen(screen.last_seen)}</Text></div></div>}
+                    />
+                  </Card>
+                </Col>
+              );
+            })}
+          </Row>
+        )
       )}
 
       {/* Logo Update Modal */}
