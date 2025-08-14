@@ -48,6 +48,21 @@ const PermissionsManager = () => {
     loadData();
   }, []);
 
+  // ריל-טיים: האזן לשינויים והימנע מרענון דף
+  useEffect(() => {
+    const s = window.io;
+    if (!s) return;
+    const refresh = () => loadData();
+    s.on('screen_name_updated', refresh);
+    s.on('screen_logo_updated', refresh);
+    s.on('screen_deleted', refresh);
+    return () => {
+      s.off('screen_name_updated', refresh);
+      s.off('screen_logo_updated', refresh);
+      s.off('screen_deleted', refresh);
+    };
+  }, []);
+
   const loadData = async () => {
     try {
       setLoading(true);

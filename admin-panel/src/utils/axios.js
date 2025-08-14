@@ -1,5 +1,7 @@
 import axios from 'axios';
 import { notification } from 'antd';
+import NProgress from 'nprogress';
+import 'nprogress/nprogress.css';
 
 // Create axios instance
 const api = axios.create({
@@ -14,10 +16,12 @@ const api = axios.create({
 // Request interceptor
 api.interceptors.request.use(
   (config) => {
+    NProgress.start();
     console.log('🔄 Sending request:', config.method?.toUpperCase(), config.url);
     return config;
   },
   (error) => {
+    NProgress.done();
     console.error('❌ Request error:', error);
     return Promise.reject(error);
   }
@@ -26,10 +30,12 @@ api.interceptors.request.use(
 // Response interceptor
 api.interceptors.response.use(
   (response) => {
+    NProgress.done();
     console.log('✅ Response received:', response.status, response.config.url);
     return response;
   },
   (error) => {
+    NProgress.done();
     console.error('❌ Response error:', error);
     
     if (error.response?.status === 401) {

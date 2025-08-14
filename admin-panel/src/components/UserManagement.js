@@ -53,11 +53,10 @@ const UserManagement = ({ socket }) => {
 
   useEffect(() => {
     if (!socket) return;
-    socket.on('users_updated', () => {
-      loadUsers();
-    });
+    const refresh = () => loadUsers();
+    socket.on('users_updated', refresh);
     return () => {
-      socket.off('users_updated');
+      socket.off('users_updated', refresh);
     };
   }, [socket]);
 

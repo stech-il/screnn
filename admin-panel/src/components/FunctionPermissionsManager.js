@@ -83,6 +83,15 @@ const FunctionPermissionsManager = () => {
     loadData();
   }, []);
 
+  // ריל-טיים: אם בוצע שינוי משתמשים בצד השני, רענן רשימות
+  useEffect(() => {
+    const s = window.io;
+    if (!s) return;
+    const refresh = () => loadData();
+    s.on('users_updated', refresh);
+    return () => s.off('users_updated', refresh);
+  }, []);
+
   const loadData = async () => {
     try {
       setLoading(true);
