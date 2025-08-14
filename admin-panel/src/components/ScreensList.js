@@ -132,25 +132,29 @@ const ScreensList = ({ screens, loading, onRefresh, user, socket }) => {
     }
   };
 
-  const formatLastSeen = (lastSeen) => {
+  const formatLastSeen = (lastSeen, isOnline) => {
     if (!lastSeen) return 'אף פעם';
     
+    // If online, just show "מחובר"
+    if (isOnline) {
+      return 'מחובר';
+    }
+    
+    // If offline, show when last connected
     const lastSeenTime = new Date(lastSeen);
     const now = new Date();
     const diffSeconds = Math.floor((now - lastSeenTime) / 1000);
     
-    if (diffSeconds < 30) {
-      return `מחובר עכשיו • ${diffSeconds}ש`;
-    } else if (diffSeconds < 60) {
-      return `לפני ${diffSeconds} שניות`;
+    if (diffSeconds < 60) {
+      return `התנתק לפני ${diffSeconds} שניות`;
     } else if (diffSeconds < 3600) {
       const minutes = Math.floor(diffSeconds / 60);
-      return `לפני ${minutes} דקות`;
+      return `התנתק לפני ${minutes} דקות`;
     } else if (diffSeconds < 86400) {
       const hours = Math.floor(diffSeconds / 3600);
-      return `לפני ${hours} שעות`;
+      return `התנתק לפני ${hours} שעות`;
     } else {
-      return lastSeenTime.toLocaleString('he-IL');
+      return `התחבר לאחרונה: ${lastSeenTime.toLocaleDateString('he-IL')} ${lastSeenTime.toLocaleTimeString('he-IL')}`;
     }
   };
 
@@ -198,7 +202,7 @@ const ScreensList = ({ screens, loading, onRefresh, user, socket }) => {
         <Space wrap>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#52c41a', animation: 'pulse 2s infinite' }} />
-            {!isMobile && (<Text type="secondary" style={{ fontSize: 12 }}>מתעדכן אוטומטית כל 10 שניות</Text>)}
+            {!isMobile && (<Text type="secondary" style={{ fontSize: 12 }}>מתעדכן אוטומטית כל דקה</Text>)}
           </div>
           <Button size={isMobile ? 'small' : 'middle'} icon={<ReloadOutlined />} onClick={onRefresh}>רענן</Button>
           {(user?.role === 'admin' || user?.role === 'super_admin') && (
@@ -242,7 +246,7 @@ const ScreensList = ({ screens, loading, onRefresh, user, socket }) => {
                       </div>
                       <div>
                         <div style={{ fontWeight: 600 }}>{screen.name}</div>
-                        <div style={{ fontSize: 12, color: '#666' }}>מזהה: {screen.id.slice(0,8)} • {formatLastSeen(screen.last_seen)}</div>
+                        <div style={{ fontSize: 12, color: '#666' }}>מזהה: {screen.id.slice(0,8)} • {formatLastSeen(screen.last_seen, status.status === 'online')}</div>
                       </div>
                     </div>
                     <div>
@@ -297,7 +301,7 @@ const ScreensList = ({ screens, loading, onRefresh, user, socket }) => {
                     <Card.Meta
                       avatar={<div style={{ width: 40, height: 40, background: '#1890ff', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: 16 }}><DesktopOutlined /></div>}
                       title={<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}><span>{screen.name}</span><div style={{ display: 'flex', gap: 4 }}>{screen.permission_type && (<Tag color={getPermissionColor(screen.permission_type)}>{getPermissionText(screen.permission_type)}</Tag>)}<Tag color={status.color}>{status.text}</Tag></div></div>}
-                      description={<div><div style={{ marginBottom: 8 }}><Text type="secondary">מיקום: </Text><Text>{screen.location || 'לא צוין'}</Text></div><div style={{ marginBottom: 8 }}><Text type="secondary">מזהה: </Text><Text code copyable>{screen.id}</Text></div><div><Text type="secondary">חיבור אחרון: </Text><Text>{formatLastSeen(screen.last_seen)}</Text></div></div>}
+                      description={<div><div style={{ marginBottom: 8 }}><Text type="secondary">מיקום: </Text><Text>{screen.location || 'לא צוין'}</Text></div><div style={{ marginBottom: 8 }}><Text type="secondary">מזהה: </Text><Text code copyable>{screen.id}</Text></div><div><Text type="secondary">סטטוס: </Text><Text>{formatLastSeen(screen.last_seen, status.status === 'online')}</Text></div></div>}
                     />
                   </Card>
                 </Col>

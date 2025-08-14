@@ -273,7 +273,7 @@ const ScreenDetail = ({ onScreenUpdated, socket }) => {
               backgroundColor: '#52c41a',
               animation: 'pulse 2s infinite'
             }} />
-            <Text type="secondary" style={{ fontSize: '12px' }}>מתעדכן אוטומטית כל 5 שניות</Text>
+            <Text type="secondary" style={{ fontSize: '12px' }}>מתעדכן אוטומטית כל דקה</Text>
           </div>
           <Button 
             icon={<EyeOutlined />}
@@ -321,7 +321,7 @@ const ScreenDetail = ({ onScreenUpdated, socket }) => {
               </Col>
               <Col span={6}>
                 <div>
-                  <Text type="secondary">חיבור אחרון:</Text>
+                  <Text type="secondary">סטטוס חיבור:</Text>
                   <div>
                     <Text>
                       {screen.last_seen 
@@ -329,19 +329,20 @@ const ScreenDetail = ({ onScreenUpdated, socket }) => {
                             const lastSeenTime = new Date(screen.last_seen);
                             const now = new Date();
                             const diffSeconds = Math.floor((now - lastSeenTime) / 1000);
+                            const isOnline = diffSeconds < 30;
                             
-                            if (diffSeconds < 30) {
-                              return `מחובר עכשיו • ${diffSeconds}ש`;
+                            if (isOnline) {
+                              return 'מחובר';
                             } else if (diffSeconds < 60) {
-                              return `לפני ${diffSeconds} שניות`;
+                              return `התנתק לפני ${diffSeconds} שניות`;
                             } else if (diffSeconds < 3600) {
                               const minutes = Math.floor(diffSeconds / 60);
-                              return `לפני ${minutes} דקות`;
+                              return `התנתק לפני ${minutes} דקות`;
                             } else if (diffSeconds < 86400) {
                               const hours = Math.floor(diffSeconds / 3600);
-                              return `לפני ${hours} שעות`;
+                              return `התנתק לפני ${hours} שעות`;
                             } else {
-                              return lastSeenTime.toLocaleString('he-IL');
+                              return `התחבר לאחרונה: ${lastSeenTime.toLocaleDateString('he-IL')} ${lastSeenTime.toLocaleTimeString('he-IL')}`;
                             }
                           })()
                         : 'אף פעם'
