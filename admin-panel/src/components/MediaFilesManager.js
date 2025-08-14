@@ -30,6 +30,20 @@ const MediaFilesManager = () => {
     }
   };
 
+  const updateFileSizes = async () => {
+    try {
+      setLoading(true);
+      const response = await axios.post('/api/admin/media-files/update-sizes');
+      setMediaFiles(response.data);
+      setError(null);
+      alert(`עודכנו משקלי ${response.data.length} קבצים בהצלחה!`);
+    } catch (err) {
+      setError('שגיאה בעדכון משקלי קבצים: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleFileSelection = (contentId) => {
     const newSelected = new Set(selectedFiles);
     if (newSelected.has(contentId)) {
@@ -49,7 +63,12 @@ const MediaFilesManager = () => {
   };
 
   const deleteFile = async (contentId) => {
-    if (!window.confirm('האם אתה בטוח שברצונך למחוק קובץ זה?')) {
+    const file = mediaFiles.find(f => f.content_id === contentId);
+    const fileName = file?.title || 'קובץ ללא שם';
+    const fileSize = file?.file_size_formatted || 'לא ידוע';
+    const screenName = file?.screen_name || 'לא ידוע';
+    
+    if (!window.confirm(`⚠️ אישור מחיקת קובץ\n\nשם הקובץ: ${fileName}\nגודל: ${fileSize}\nמסך: ${screenName}\n\n❌ האם אתה בטוח שברצונך למחוק קובץ זה?\nפעולה זו לא ניתנת לביטול!`)) {
       return;
     }
 
@@ -68,7 +87,11 @@ const MediaFilesManager = () => {
   const deleteSelectedFiles = async () => {
     if (selectedFiles.size === 0) return;
     
-    if (!window.confirm(`האם אתה בטוח שברצונך למחוק ${selectedFiles.size} קבצים נבחרים?`)) {
+    const selectedFilesData = mediaFiles.filter(f => selectedFiles.has(f.content_id));
+    const totalSize = selectedFilesData.reduce((sum, file) => sum + (file.file_size || 0), 0);
+    const totalSizeFormatted = formatFileSize(totalSize);
+    
+    if (!window.confirm(`⚠️ אישור מחיקה מרובה\n\nמספר קבצים: ${selectedFiles.size}\nגודל כולל: ${totalSizeFormatted}\n\n❌ האם אתה בטוח שברצונך למחוק את כל הקבצים הנבחרים?\nפעולה זו לא ניתנת לביטול!`)) {
       return;
     }
 
@@ -228,7 +251,15 @@ const MediaFilesManager = () => {
             onClick={fetchMediaFiles}
             disabled={loading}
           >
-            🔄 רענן
+            🔄 רענן רשימה
+          </button>
+          <button 
+            className="update-sizes-btn"
+            onClick={updateFileSizes}
+            disabled={loading}
+            title="עדכן משקלי קבצים"
+          >
+            📊 עדכן משקלים
           </button>
         </div>
       </div>
@@ -300,7 +331,7 @@ const MediaFilesManager = () => {
             disabled={deleteLoading}
             className="delete-selected-btn"
           >
-            <span className="delete-icon">🗑️</span>
+            <span className="delete-icon">×</span>
             מחק נבחרים ({selectedFiles.size})
           </button>
         )}
@@ -357,7 +388,7 @@ const MediaFilesManager = () => {
                   className="delete-btn"
                   title="מחק קובץ"
                 >
-                  <span className="delete-icon">🗑️</span>
+                  <span className="delete-icon">×</span>
                 </button>
               </div>
             </div>

@@ -2030,6 +2030,63 @@ app.delete('/api/admin/function-permissions/:userId', requireAuth, (req, res) =>
   });
 });
 
+// Update file sizes endpoint (admin only)
+app.post('/api/admin/media-files/update-sizes', requireAuth, (req, res) => {
+  logInfo('📊 בקשת עדכון משקלי קבצים');
+  
+  // Check if user is admin
+  db.get('SELECT role FROM users WHERE id = ?', [req.session.userId], (err, user) => {
+    if (err) {
+      logError(err, 'בדיקת הרשאות עדכון משקלי קבצים');
+      return res.status(500).json({ error: 'שגיאה בבדיקת הרשאות' });
+    }
+    
+    if (!user || (user.role !== 'admin' && user.role !== 'super_admin')) {
+      return res.status(403).json({ error: 'אין לך הרשאה לעדכן משקלי קבצים' });
+    }
+    
+    // Get all media files from content table
+    db.all(`
+      SELECT 
+        c.id as content_id,
+        c.file_path,
+        c.title,
+        c.type,
+        c.created_at,
+        c.updated_at,
+        s.name as screen_name,
+        s.id as screen_id
+      FROM content c
+      JOIN screens s ON c.screen_id = s.id
+      WHERE c.file_path IS NOT NULL AND c.file_path != ''
+      ORDER BY c.created_at DESC
+    `, [], (err, rows) => {
+      if (err) {
+        logError(err, 'קבלת רשימת קבצי מדיה לעדכון משקלים');
+        return res.status(500).json({ error: 'שגיאה בקבלת רשימת קבצי מדיה' });
+      }
+      
+      // Update file info for each media file
+      const updatedFiles = rows.map(row => {
+        const filePath = path.join(DATA_DIR, row.file_path.replace('/uploads/', ''));
+        const stats = fs.existsSync(filePath) ? fs.statSync(filePath) : null;
+        
+        return {
+          ...row,
+          file_exists: !!stats,
+          file_size: stats ? stats.size : 0,
+          file_size_formatted: stats ? formatFileSize(stats.size) : 'לא נמצא',
+          last_modified: stats ? stats.mtime : null,
+          full_path: row.file_path
+        };
+      });
+      
+      logSuccess(`עודכנו משקלי ${updatedFiles.length} קבצי מדיה`);
+      res.json(updatedFiles);
+    });
+  });
+});
+
 // Media files management endpoints (admin only)
 app.get('/api/admin/media-files', requireAuth, (req, res) => {
   logInfo('📁 בקשת רשימת קבצי מדיה');

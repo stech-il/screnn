@@ -25,7 +25,8 @@
   gap: 10px;
 }
 
-.refresh-btn {
+.refresh-btn,
+.update-sizes-btn {
   background: #4CAF50;
   color: white;
   border: none;
@@ -34,6 +35,15 @@
   cursor: pointer;
   font-size: 14px;
   transition: background-color 0.3s;
+  margin-left: 10px;
+}
+
+.update-sizes-btn {
+  background: #2196F3;
+}
+
+.update-sizes-btn:hover {
+  background: #1976D2;
 }
 
 .refresh-btn:hover {
@@ -363,31 +373,13 @@
 }
 
 .delete-icon {
-  font-size: 18px;
+  font-size: 20px;
   line-height: 1;
+  font-weight: bold;
+  color: white;
 }
 
-/* Fallback for delete icon */
-.delete-btn::before {
-  content: "🗑️";
-  font-size: 18px;
-  line-height: 1;
-}
 
-.delete-btn .delete-icon {
-  display: inline-block;
-}
-
-/* Alternative delete icon using CSS */
-.delete-btn::after {
-  content: "";
-  display: none;
-  width: 16px;
-  height: 16px;
-  background: currentColor;
-  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z'/%3E%3C/svg%3E") no-repeat center;
-  mask-size: contain;
-}
 
 .delete-btn:hover {
   background: #d32f2f;
