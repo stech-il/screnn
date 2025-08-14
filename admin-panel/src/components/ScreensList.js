@@ -139,11 +139,16 @@ const ScreensList = ({ screens, loading, onRefresh, user, socket }) => {
     const now = new Date();
     const diffSeconds = Math.floor((now - lastSeenTime) / 1000);
     
-    if (diffSeconds < 60) {
+    if (diffSeconds < 30) {
+      return `מחובר עכשיו • ${diffSeconds}ש`;
+    } else if (diffSeconds < 60) {
       return `לפני ${diffSeconds} שניות`;
     } else if (diffSeconds < 3600) {
       const minutes = Math.floor(diffSeconds / 60);
       return `לפני ${minutes} דקות`;
+    } else if (diffSeconds < 86400) {
+      const hours = Math.floor(diffSeconds / 3600);
+      return `לפני ${hours} שעות`;
     } else {
       return lastSeenTime.toLocaleString('he-IL');
     }

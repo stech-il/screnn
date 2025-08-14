@@ -998,69 +998,83 @@ app.get('/api/screens/:id', (req, res) => {
 app.post('/api/screens/:id/heartbeat', (req, res) => {
   const { id } = req.params;
   const currentTime = new Date().toISOString();
+  
+  // Check if this is a viewer (client) or admin panel request
+  const userAgent = req.headers['user-agent'] || '';
+  const isClientViewer = userAgent.includes('Electron') || 
+                        req.headers.referer?.includes('/client') ||
+                        !req.headers.referer?.includes('/admin');
+  
   console.log(`\n💓 === HEARTBEAT RECEIVED ===`);
   console.log(`📅 זמן: ${currentTime}`);
   console.log(`🆔 מזהה מסך: ${id}`);
   console.log(`🌐 IP: ${req.ip}`);
-  console.log(`📊 User-Agent: ${req.headers['user-agent']}`);
-  console.log(`📋 Content-Type: ${req.headers['content-type']}`);
-  logInfo(`💓 heartbeat ממסך: ${id}`);
+  console.log(`👤 סוג: ${isClientViewer ? 'מסך צפייה' : 'פאנל ניהול'}`);
+  console.log(`📊 User-Agent: ${userAgent}`);
+  logInfo(`💓 heartbeat ממסך: ${id} (${isClientViewer ? 'צפייה' : 'ניהול'})`);
   
-  const currentTimeISO = new Date().toISOString();
-  console.log(`💓 מעדכן last_seen ל: ${currentTimeISO}`);
-  db.run('UPDATE screens SET last_seen = ? WHERE id = ?', [currentTimeISO, id], function(err) {
-    if (err) {
-      logError(err, 'heartbeat - עדכון מסך');
-      res.status(500).json({ error: err.message });
-      return;
-    }
-    if (this.changes === 0) {
-      // Screen doesn't exist, create it
-      logInfo(`מסך לא קיים, יוצר חדש: ${id}`);
-      db.run(
-        'INSERT INTO screens (id, name, location, last_seen) VALUES (?, ?, ?, ?)',
-        [id, `מסך ${id.substring(0, 8)}`, 'לא צוין', currentTimeISO],
-        function(insertErr) {
-          if (insertErr) {
-            logError(insertErr, 'heartbeat - יצירת מסך');
-            res.status(500).json({ error: insertErr.message });
-            return;
-          }
-          
-          // Give permissions to all admins for the new screen
-          db.all('SELECT id FROM users WHERE role IN (?, ?)', ['admin', 'super_admin'], (err, admins) => {
-            if (err) {
-              logError(err, 'בדיקת מנהלים להרשאות אוטומטיות - heartbeat');
-            } else {
-              admins.forEach(admin => {
-                db.run(
-                  'INSERT OR IGNORE INTO screen_permissions (id, user_id, screen_id, permission_type) VALUES (?, ?, ?, ?)',
-                  [uuidv4(), admin.id, id, 'admin']
-                );
-              });
-              logInfo(`נוצרו הרשאות אוטומטיות למסך ${id} עבור ${admins.length} מנהלים (heartbeat)`);
+  // Only update last_seen for actual client viewers, not admin panel
+  if (isClientViewer) {
+    const currentTimeISO = new Date().toISOString();
+    console.log(`💓 מעדכן last_seen למסך צפייה: ${currentTimeISO}`);
+    db.run('UPDATE screens SET last_seen = ? WHERE id = ?', [currentTimeISO, id], function(err) {
+      if (err) {
+        logError(err, 'heartbeat - עדכון מסך צפייה');
+        res.status(500).json({ error: err.message });
+        return;
+      }
+      if (this.changes === 0) {
+        // Screen doesn't exist, create it
+        logInfo(`מסך צפייה לא קיים, יוצר חדש: ${id}`);
+        db.run(
+          'INSERT INTO screens (id, name, location, last_seen) VALUES (?, ?, ?, ?)',
+          [id, `מסך ${id.substring(0, 8)}`, 'לא צוין', currentTimeISO],
+          function(insertErr) {
+            if (insertErr) {
+              logError(insertErr, 'heartbeat - יצירת מסך צפייה');
+              res.status(500).json({ error: insertErr.message });
+              return;
             }
-          });
-          
-          logSuccess(`מסך נוצר ועודכן: ${id}`);
-                  const currentTime = new Date().toISOString();
+            
+            // Give permissions to all admins for the new screen
+            db.all('SELECT id FROM users WHERE role IN (?, ?)', ['admin', 'super_admin'], (err, admins) => {
+              if (err) {
+                logError(err, 'בדיקת מנהלים להרשאות אוטומטיות - heartbeat צפייה');
+              } else {
+                admins.forEach(admin => {
+                  db.run(
+                    'INSERT OR IGNORE INTO screen_permissions (id, user_id, screen_id, permission_type) VALUES (?, ?, ?, ?)',
+                    [uuidv4(), admin.id, id, 'admin']
+                  );
+                });
+                logInfo(`נוצרו הרשאות אוטומטיות למסך ${id} עבור ${admins.length} מנהלים (heartbeat צפייה)`);
+              }
+            });
+            
+            logSuccess(`מסך צפייה נוצר ועודכן: ${id}`);
+            const currentTime = new Date().toISOString();
+            console.log(`📡 שולח screen_status_updated: ${id} - ${currentTime}`);
+            logInfo(`📡 שולח screen_status_updated: ${id} - ${currentTime}`);
+            io.emit('screen_status_updated', { id, last_seen: currentTime });
+            res.json({ message: 'מסך צפייה נוצר ועודכן', created: true });
+          }
+        );
+      } else {
+        logInfo(`סטטוס מסך צפייה עודכן: ${id}`);
+        const currentTime = new Date().toISOString();
         console.log(`📡 שולח screen_status_updated: ${id} - ${currentTime}`);
-        console.log(`📊 זמן שנשלח בevent: ${currentTime}`);
         logInfo(`📡 שולח screen_status_updated: ${id} - ${currentTime}`);
         io.emit('screen_status_updated', { id, last_seen: currentTime });
-          res.json({ message: 'מסך נוצר ועודכן', created: true });
-        }
-      );
-    } else {
-      logInfo(`סטטוס מסך עודכן: ${id}`);
-      const currentTime = new Date().toISOString();
-      console.log(`📡 שולח screen_status_updated: ${id} - ${currentTime}`);
-      logInfo(`📡 שולח screen_status_updated: ${id} - ${currentTime}`);
-      io.emit('screen_status_updated', { id, last_seen: currentTime });
-      console.log(`✅ Heartbeat הושלם - סטטוס עודכן`);
-      res.json({ message: 'סטטוס עודכן', created: false });
-    }
-  });
+        console.log(`✅ Heartbeat הושלם - סטטוס מסך צפייה עודכן`);
+        res.json({ message: 'סטטוס מסך צפייה עודכן', created: false });
+      }
+    });
+  } else {
+    // Admin panel heartbeat - just confirm without updating last_seen
+    console.log(`📊 heartbeat מפאנל ניהול - לא מעדכן last_seen`);
+    logInfo(`heartbeat מפאנל ניהול למסך ${id} - לא מעדכן זמן`);
+    res.json({ message: 'heartbeat מפאנל ניהול התקבל', updated: false });
+  }
 });
 
 // Content management (protected routes)
