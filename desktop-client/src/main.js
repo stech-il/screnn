@@ -7,6 +7,15 @@ const axios = require('axios');
 axios.defaults.timeout = 10000;
 axios.defaults.headers.common['Keep-Alive'] = 'timeout=5, max=1000';
 axios.defaults.headers.common['Connection'] = 'keep-alive';
+// קבע נתיב userData יציב לפני יצירת ה‑store (מונע שינוי בין Dev/Build/שמות שונים)
+try {
+  const fixedUserDataDir = path.join(app.getPath('appData'), 'DigitlexDesktop');
+  app.setPath('userData', fixedUserDataDir);
+  console.log('📂 userData fixed to:', fixedUserDataDir);
+} catch (e) {
+  console.error('❌ Failed to set fixed userData path:', e);
+}
+
 const Store = require('electron-store');
 const cron = require('node-cron');
 const { autoUpdater } = require('electron-updater');
