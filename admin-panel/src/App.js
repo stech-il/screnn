@@ -267,6 +267,21 @@ function App() {
       type: 'divider'
     },
     {
+      key: 'change_password',
+      icon: <KeyOutlined />,
+      label: 'שינוי סיסמה',
+      onClick: async () => {
+        const newPassword = prompt('הכנס סיסמה חדשה');
+        if (!newPassword) return;
+        try {
+          await api.post('/api/auth/change-password', { new_password: newPassword });
+          notification.success({ message: 'סיסמה עודכנה', placement: 'topRight' });
+        } catch (e) {
+          notification.error({ message: 'שגיאה בעדכון סיסמה', description: e.response?.data?.error || e.message });
+        }
+      }
+    },
+    {
       key: 'logout',
       icon: <LogoutOutlined />,
       label: 'התנתק',

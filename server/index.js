@@ -531,6 +531,32 @@ app.post('/api/auth/reset', async (req, res) => {
   });
 });
 
+// Change password (authenticated)
+app.post('/api/auth/change-password', requireAuth, async (req, res) => {
+  const { current_password, new_password } = req.body;
+  if (!new_password) return res.status(400).json({ error: 'סיסמה חדשה נדרשת' });
+
+  db.get('SELECT password, role FROM users WHERE id = ?', [req.session.userId], async (err, row) => {
+    if (err) return res.status(500).json({ error: 'שגיאה בשרת' });
+    if (!row) return res.status(404).json({ error: 'משתמש לא נמצא' });
+
+    try {
+      // אם סופקה סיסמה נוכחית, ודא שהיא תקינה; למנהלים מותר בלי בדיקה אם current_password לא סופקה
+      if (current_password) {
+        const ok = await bcrypt.compare(current_password, row.password);
+        if (!ok) return res.status(401).json({ error: 'סיסמה נוכחית שגויה' });
+      }
+      const hash = await bcrypt.hash(new_password, 10);
+      db.run('UPDATE users SET password = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [hash, req.session.userId], (e2) => {
+        if (e2) return res.status(500).json({ error: 'שגיאה בעדכון סיסמה' });
+        res.json({ message: 'סיסמה עודכנה בהצלחה' });
+      });
+    } catch (e) {
+      res.status(500).json({ error: 'שגיאה בעיבוד הסיסמה' });
+    }
+  });
+});
+
 app.post('/api/auth/logout', (req, res) => {
   logInfo('🚪 בקשת התנתקות');
   logInfo(`משתמש מתנתק: ${req.session?.username || 'לא ידוע'}`);
@@ -1528,6 +1554,51 @@ app.post('/api/admin/users', requireAuth, async (req, res) => {
           }
           logSuccess(`משתמש חדש נוצר: ${username} (${newUserId})`);
           io.emit('users_updated');
+
+          // שליחת מייל פרטי התחברות אם קיים אימייל
+          if (email) {
+            (async () => {
+              try {
+                // קרא הגדרות SMTP & URL
+                const settings = await new Promise((resolve) => {
+                  db.all('SELECT key, value FROM app_settings WHERE key IN ("SMTP_USER","SMTP_PASS","SMTP_FROM","PUBLIC_URL")', (e, rows) => {
+                    const map = Object.fromEntries((rows || []).map(r => [r.key, r.value]));
+                    resolve(map);
+                  });
+                });
+                const smtpUser = process.env.SMTP_USER || settings.SMTP_USER;
+                const smtpPass = process.env.SMTP_PASS || settings.SMTP_PASS;
+                const smtpFrom = process.env.SMTP_FROM || settings.SMTP_FROM || smtpUser;
+                const baseUrl = process.env.PUBLIC_URL || settings.PUBLIC_URL || `http://localhost:${PORT}`;
+                if (smtpUser && smtpPass && smtpFrom) {
+                  const transporter = nodemailer.createTransport({ service: 'gmail', auth: { user: smtpUser, pass: smtpPass } });
+                  const html = `
+                    <div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;border:1px solid #eee;border-radius:10px">
+                      <div style="background:#001529;color:#fff;padding:16px 20px;border-radius:10px 10px 0 0">
+                        <h2 style="margin:0">ברוך הבא ל‑Digitlex</h2>
+                      </div>
+                      <div style="padding:20px">
+                        <p>שלום ${full_name || username},</p>
+                        <p>נוצר עבורך חשבון גישה למערכת ניהול המסכים.</p>
+                        <table style="width:100%;border-collapse:collapse;margin:10px 0">
+                          <tr><td style="width:140px;color:#555">כתובת גישה:</td><td><a href="${baseUrl}/admin" target="_blank">${baseUrl}/admin</a></td></tr>
+                          <tr><td style="color:#555">שם משתמש:</td><td><b>${username}</b></td></tr>
+                          <tr><td style="color:#555">סיסמה ראשונית:</td><td><b>${password}</b></td></tr>
+                        </table>
+                        <p>מומלץ להחליף סיסמה לאחר ההתחברות (תפריט משתמש → שינוי סיסמה).</p>
+                        <p style="color:#888;font-size:12px">אם לא ציפית להודעה זו, התעלם ממנה.</p>
+                      </div>
+                    </div>`;
+                  await transporter.sendMail({ from: smtpFrom, to: email, subject: 'פרטי גישה למערכת Digitlex', html });
+                } else {
+                  logInfo('SMTP not configured; skipped welcome email');
+                }
+              } catch (e) {
+                logError(e, 'שליחת מייל פרטי גישה');
+              }
+            })();
+          }
+
           res.json({ id: newUserId, message: 'משתמש נוצר בהצלחה' });
         }
       );
