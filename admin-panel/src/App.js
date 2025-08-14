@@ -35,6 +35,7 @@ function App() {
   const [collapsed, setCollapsed] = useState(false);
   const [screens, setScreens] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [now, setNow] = useState(new Date());
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const navigate = useNavigate();
@@ -81,9 +82,25 @@ function App() {
     }
   };
 
-  const loadScreens = async () => {
+  // Live clock and server sync
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000);
+    if (socket && user) {
+      const onTime = (data) => {
+        if (data?.datetime) setNow(new Date(data.datetime));
+      };
+      socket.on('time_update', onTime);
+      return () => {
+        clearInterval(id);
+        socket.off('time_update', onTime);
+      };
+    }
+    return () => clearInterval(id);
+  }, [socket, user]);
+
+  const loadScreens = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const response = await api.get('/api/user/screens');
       setScreens(response.data);
     } catch (error) {
@@ -98,7 +115,7 @@ function App() {
         });
       }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -160,8 +177,8 @@ function App() {
 
     // עדכון כללי של תוכן
     socket.on('content_updated', () => {
-      console.log('📡 content_updated received - רענון מסכים');
-      loadScreens(); // רק למקרים כלליים
+      console.log('📡 content_updated received - silent refresh');
+      loadScreens(true);
     });
 
     return () => {
@@ -334,7 +351,7 @@ function App() {
           </Title>
           <Space>
             <span style={{ color: 'white' }}>
-              {new Date().toLocaleDateString('he-IL')} | {new Date().toLocaleTimeString('he-IL')}
+              {now.toLocaleDateString('he-IL')} | {now.toLocaleTimeString('he-IL')}
             </span>
             <Dropdown
               menu={{ items: userMenuItems }}
