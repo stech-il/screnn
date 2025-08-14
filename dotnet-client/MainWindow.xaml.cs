@@ -29,6 +29,7 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _tickerTimer = new() { Interval = TimeSpan.FromMilliseconds(16) }; // ~60fps
     private readonly DispatcherTimer _messagesScrollTimer = new() { Interval = TimeSpan.FromMilliseconds(16) }; // גיבוי
     private double _messagesOffsetY = 0.0;
+    private double _loopGapPx = 160.0; // רווח בין סוף ההודעות לתחילת הלולאה
     private FrameworkElement _stack1 => MessagesStack1;
     private FrameworkElement _stack2 => MessagesStack2;
     private DateTime _lastRenderTime = DateTime.UtcNow;
@@ -42,6 +43,11 @@ public partial class MainWindow : Window
     private string _lastContentSignature = string.Empty;
     private string _currentItemKey = string.Empty;
     private bool _started = false;
+    // Offline cache paths
+    private string MessagesCachePath => Path.Combine(_appData, "messages.json");
+    private string RssCachePath => Path.Combine(_appData, "rss.json");
+    private string ContentCachePath => Path.Combine(_appData, "content.json");
+    private string ScreenCachePath => Path.Combine(_appData, "screen.json");
 
     public MainWindow()
     {
@@ -156,7 +162,21 @@ public partial class MainWindow : Window
     {
         try
         {
-            var json = await _http.GetStringAsync($"/api/screens/{_screenId}/content/public");
+            var json = await TryGetStringAsync($"/api/screens/{_screenId}/content/public");
+            if (json == null)
+            {
+                // offline fallback
+                if (File.Exists(ContentCachePath))
+                {
+                    json = await File.ReadAllTextAsync(ContentCachePath);
+                }
+            }
+            else
+            {
+                // save cache on success
+                SaveCacheSafe(ContentCachePath, json);
+            }
+            if (json == null) return;
 
             // אם אין שינוי בתוכן ואין צורך להתקדם, אל תרנדר מחדש
             if (!advance && json == _lastContentSignature)
@@ -262,7 +282,19 @@ public partial class MainWindow : Window
     {
         try
         {
-            var json = await _http.GetStringAsync($"/api/screens/{_screenId}/messages");
+            var json = await TryGetStringAsync($"/api/screens/{_screenId}/messages");
+            if (json == null)
+            {
+                if (File.Exists(MessagesCachePath))
+                {
+                    json = await File.ReadAllTextAsync(MessagesCachePath);
+                }
+            }
+            else
+            {
+                SaveCacheSafe(MessagesCachePath, json);
+            }
+            if (json == null) return;
             dynamic arr = JsonConvert.DeserializeObject(json)!;
             Dispatcher.Invoke(() => {
                 MessagesStack1.Children.Clear();
@@ -296,7 +328,19 @@ public partial class MainWindow : Window
     {
         try
         {
-            var json = await _http.GetStringAsync($"/api/screens/{_screenId}/rss-content");
+            var json = await TryGetStringAsync($"/api/screens/{_screenId}/rss-content");
+            if (json == null)
+            {
+                if (File.Exists(RssCachePath))
+                {
+                    json = await File.ReadAllTextAsync(RssCachePath);
+                }
+            }
+            else
+            {
+                SaveCacheSafe(RssCachePath, json);
+            }
+            if (json == null) return;
             dynamic arr = JsonConvert.DeserializeObject(json)!;
             Dispatcher.Invoke(() => {
                 var unique = new System.Collections.Generic.HashSet<string>();
@@ -346,7 +390,19 @@ public partial class MainWindow : Window
     {
         try
         {
-            var json = await _http.GetStringAsync($"/api/screens/{_screenId}");
+            var json = await TryGetStringAsync($"/api/screens/{_screenId}");
+            if (json == null)
+            {
+                if (File.Exists(ScreenCachePath))
+                {
+                    json = await File.ReadAllTextAsync(ScreenCachePath);
+                }
+            }
+            else
+            {
+                SaveCacheSafe(ScreenCachePath, json);
+            }
+            if (json == null) return;
             dynamic obj = JsonConvert.DeserializeObject(json)!;
             string name = (string?)obj.name ?? "";
             string logo = (string?)obj.logo_url ?? "";
@@ -363,6 +419,24 @@ public partial class MainWindow : Window
                 }
                 if (!string.IsNullOrWhiteSpace(name)) TitleText.Text = name;
             });
+        }
+        catch { }
+    }
+
+    private async Task<string?> TryGetStringAsync(string relative)
+    {
+        try
+        {
+            return await _http.GetStringAsync(relative);
+        }
+        catch { return null; }
+    }
+
+    private void SaveCacheSafe(string path, string content)
+    {
+        try
+        {
+            File.WriteAllText(path, content);
         }
         catch { }
     }
@@ -457,15 +531,17 @@ public partial class MainWindow : Window
     private void StepMessagesScroll(double deltaSeconds)
     {
         double viewportH = ((FrameworkElement)MessagesCanvas.Parent).RenderSize.Height;
-        double stackH = _messagesStack.ActualHeight;
-        if (viewportH <= 0 || stackH <= viewportH) return;
-        double threshold = stackH - viewportH;
+        if (viewportH <= 0) return;
+        // שתי מחסניות זהות זו אחר זו
+        var s1 = _stack1.ActualHeight;
+        if (s1 <= 0) return;
+        double loopLen = s1 + _loopGapPx;
         _messagesOffsetY -= _scrollSpeedPxPerSec * deltaSeconds;
-        if (-_messagesOffsetY >= threshold)
-        {
-            _messagesOffsetY = 0.0;
-        }
-        Canvas.SetTop(_messagesStack, _messagesOffsetY);
+        // לולאה אינסופית באורך ההודעות + רווח
+        if (_messagesOffsetY <= -loopLen)
+            _messagesOffsetY += loopLen;
+        Canvas.SetTop(_stack1, _messagesOffsetY);
+        Canvas.SetTop(_stack2, _messagesOffsetY + loopLen);
     }
 
     private FrameworkElement BuildMessageCard(string text)
@@ -493,9 +569,13 @@ public partial class MainWindow : Window
 
     private void LayoutRootMessages()
     {
-        _messagesStack.Measure(new Size(MessagesCanvas.ActualWidth, double.PositiveInfinity));
-        Canvas.SetLeft(_messagesStack, 0);
-        Canvas.SetTop(_messagesStack, 0);
+        MessagesStack1.Measure(new Size(MessagesCanvas.ActualWidth, double.PositiveInfinity));
+        MessagesStack2.Measure(new Size(MessagesCanvas.ActualWidth, double.PositiveInfinity));
+        Canvas.SetLeft(MessagesStack1, 0);
+        Canvas.SetLeft(MessagesStack2, 0);
+        Canvas.SetTop(MessagesStack1, 0);
+        Canvas.SetTop(MessagesStack2, MessagesStack1.DesiredSize.Height + _loopGapPx);
+        _messagesOffsetY = 0.0;
     }
 
     private void Exit_Click(object sender, RoutedEventArgs e) => Close();
