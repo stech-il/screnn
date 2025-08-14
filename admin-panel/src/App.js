@@ -295,6 +295,8 @@ function App() {
         collapsible 
         collapsed={collapsed} 
         onCollapse={setCollapsed}
+        breakpoint="md"
+        collapsedWidth={0}
         width={250}
         style={{ background: '#fff' }}
       >
@@ -322,7 +324,7 @@ function App() {
       <Layout>
         <Header style={{ 
           background: '#001529', 
-          padding: '0 24px',
+          padding: '0 16px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between'

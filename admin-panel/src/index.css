@@ -108,3 +108,28 @@ code {
 .status-offline {
   background-color: #ff4d4f;
 } 
+
+/* Mobile responsive tweaks */
+@media (max-width: 768px) {
+  .ant-layout-sider {
+    position: fixed;
+    z-index: 1000;
+    height: 100vh !important;
+  }
+
+  .ant-layout-header {
+    padding: 0 12px !important;
+  }
+
+  .ant-card {
+    border-radius: 10px;
+  }
+
+  .ant-table {
+    font-size: 12px;
+  }
+
+  .ant-form-item {
+    margin-bottom: 12px;
+  }
+}
