@@ -45,6 +45,10 @@ screens.db
 server/uploads/
 uploads/
 
+# .NET build artifacts
+dotnet-client/bin/
+dotnet-client/obj/
+
 # Environment variables
 .env
 .env.local

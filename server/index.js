@@ -219,6 +219,13 @@ db.serialize(() => {
     }
   });
 
+  // Add logo_url column if it doesn't exist (for existing databases)
+  db.run('ALTER TABLE screens ADD COLUMN logo_url TEXT', (err) => {
+    if (err && !err.message.includes('duplicate column')) {
+      console.log('Error adding logo_url column (probably already exists):', err.message);
+    }
+  });
+
   // Content table
   db.run(`CREATE TABLE IF NOT EXISTS content (
     id TEXT PRIMARY KEY,
