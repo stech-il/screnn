@@ -2030,6 +2030,229 @@ app.delete('/api/admin/function-permissions/:userId', requireAuth, (req, res) =>
   });
 });
 
+// Media files management endpoints (admin only)
+app.get('/api/admin/media-files', requireAuth, (req, res) => {
+  logInfo('📁 בקשת רשימת קבצי מדיה');
+  
+  // Check if user is admin
+  db.get('SELECT role FROM users WHERE id = ?', [req.session.userId], (err, user) => {
+    if (err) {
+      logError(err, 'בדיקת הרשאות רשימת קבצי מדיה');
+      return res.status(500).json({ error: 'שגיאה בבדיקת הרשאות' });
+    }
+    
+    if (!user || (user.role !== 'admin' && user.role !== 'super_admin')) {
+      return res.status(403).json({ error: 'אין לך הרשאה לצפות בקבצי מדיה' });
+    }
+    
+    // Get all media files from content table
+    db.all(`
+      SELECT 
+        c.id as content_id,
+        c.file_path,
+        c.title,
+        c.type,
+        c.created_at,
+        c.updated_at,
+        s.name as screen_name,
+        s.id as screen_id
+      FROM content c
+      JOIN screens s ON c.screen_id = s.id
+      WHERE c.file_path IS NOT NULL AND c.file_path != ''
+      ORDER BY c.created_at DESC
+    `, [], (err, rows) => {
+      if (err) {
+        logError(err, 'קבלת רשימת קבצי מדיה');
+        return res.status(500).json({ error: 'שגיאה בקבלת רשימת קבצי מדיה' });
+      }
+      
+      // Add file info for each media file
+      const mediaFiles = rows.map(row => {
+        const filePath = path.join(DATA_DIR, row.file_path.replace('/uploads/', ''));
+        const stats = fs.existsSync(filePath) ? fs.statSync(filePath) : null;
+        
+        return {
+          ...row,
+          file_exists: !!stats,
+          file_size: stats ? stats.size : 0,
+          file_size_formatted: stats ? formatFileSize(stats.size) : 'לא נמצא',
+          last_modified: stats ? stats.mtime : null,
+          full_path: row.file_path
+        };
+      });
+      
+      logSuccess(`נמצאו ${mediaFiles.length} קבצי מדיה`);
+      res.json(mediaFiles);
+    });
+  });
+});
+
+// Delete media file endpoint (admin only)
+app.delete('/api/admin/media-files/:contentId', requireAuth, (req, res) => {
+  logInfo(`🗑️ בקשת מחיקת קובץ מדיה: ${req.params.contentId}`);
+  const { contentId } = req.params;
+  
+  // Check if user is admin
+  db.get('SELECT role FROM users WHERE id = ?', [req.session.userId], (err, user) => {
+    if (err) {
+      logError(err, 'בדיקת הרשאות מחיקת קובץ מדיה');
+      return res.status(500).json({ error: 'שגיאה בבדיקת הרשאות' });
+    }
+    
+    if (!user || (user.role !== 'admin' && user.role !== 'super_admin')) {
+      return res.status(403).json({ error: 'אין לך הרשאה למחוק קבצי מדיה' });
+    }
+    
+    // Get content info first
+    db.get(`
+      SELECT c.*, s.name as screen_name 
+      FROM content c 
+      JOIN screens s ON c.screen_id = s.id 
+      WHERE c.id = ?
+    `, [contentId], (err, content) => {
+      if (err) {
+        logError(err, 'קבלת מידע על תוכן למחיקה');
+        return res.status(500).json({ error: 'שגיאה בקבלת מידע על התוכן' });
+      }
+      
+      if (!content) {
+        return res.status(404).json({ error: 'תוכן לא נמצא' });
+      }
+      
+      if (!content.file_path) {
+        return res.status(400).json({ error: 'לתוכן זה אין קובץ מדיה' });
+      }
+      
+      // Delete physical file
+      const filePath = path.join(DATA_DIR, content.file_path.replace('/uploads/', ''));
+      if (fs.existsSync(filePath)) {
+        try {
+          fs.unlinkSync(filePath);
+          logSuccess(`קובץ פיזי נמחק: ${filePath}`);
+        } catch (fileErr) {
+          logError(fileErr, 'מחיקת קובץ פיזי');
+          // Continue with database deletion even if file deletion fails
+        }
+      }
+      
+      // Update content to remove file reference
+      db.run(`
+        UPDATE content 
+        SET file_path = NULL, updated_at = CURRENT_TIMESTAMP 
+        WHERE id = ?
+      `, [contentId], function(err) {
+        if (err) {
+          logError(err, 'עדכון תוכן לאחר מחיקת קובץ');
+          return res.status(500).json({ error: 'שגיאה בעדכון התוכן' });
+        }
+        
+        // Notify connected screens
+        io.to(content.screen_id).emit('content_updated');
+        
+        logSuccess(`קובץ מדיה נמחק בהצלחה: ${content.file_path}`);
+        res.json({ 
+          message: 'קובץ מדיה נמחק בהצלחה',
+          deleted_file: content.file_path,
+          screen_name: content.screen_name
+        });
+      });
+    });
+  });
+});
+
+// Bulk delete media files endpoint (admin only)
+app.delete('/api/admin/media-files', requireAuth, (req, res) => {
+  logInfo('🗑️ בקשת מחיקה מרובה של קבצי מדיה');
+  const { contentIds } = req.body;
+  
+  if (!contentIds || !Array.isArray(contentIds) || contentIds.length === 0) {
+    return res.status(400).json({ error: 'רשימת מזההי תוכן נדרשת' });
+  }
+  
+  // Check if user is admin
+  db.get('SELECT role FROM users WHERE id = ?', [req.session.userId], (err, user) => {
+    if (err) {
+      logError(err, 'בדיקת הרשאות מחיקה מרובה של קבצי מדיה');
+      return res.status(500).json({ error: 'שגיאה בבדיקת הרשאות' });
+    }
+    
+    if (!user || (user.role !== 'admin' && user.role !== 'super_admin')) {
+      return res.status(403).json({ error: 'אין לך הרשאה למחוק קבצי מדיה' });
+    }
+    
+    // Get all content info first
+    db.all(`
+      SELECT c.*, s.name as screen_name 
+      FROM content c 
+      JOIN screens s ON c.screen_id = s.id 
+      WHERE c.id IN (${contentIds.map(() => '?').join(',')})
+    `, contentIds, (err, contents) => {
+      if (err) {
+        logError(err, 'קבלת מידע על תוכן למחיקה מרובה');
+        return res.status(500).json({ error: 'שגיאה בקבלת מידע על התוכן' });
+      }
+      
+      let deletedFiles = 0;
+      let deletedBytes = 0;
+      const screenIds = new Set();
+      
+      // Delete physical files and update database
+      contents.forEach(content => {
+        if (content.file_path) {
+          const filePath = path.join(DATA_DIR, content.file_path.replace('/uploads/', ''));
+          if (fs.existsSync(filePath)) {
+            try {
+              const stats = fs.statSync(filePath);
+              deletedBytes += stats.size;
+              fs.unlinkSync(filePath);
+              deletedFiles++;
+              logSuccess(`קובץ פיזי נמחק: ${filePath}`);
+            } catch (fileErr) {
+              logError(fileErr, 'מחיקת קובץ פיזי');
+            }
+          }
+          screenIds.add(content.screen_id);
+        }
+      });
+      
+      // Update all content to remove file references
+      db.run(`
+        UPDATE content 
+        SET file_path = NULL, updated_at = CURRENT_TIMESTAMP 
+        WHERE id IN (${contentIds.map(() => '?').join(',')})
+      `, contentIds, function(err) {
+        if (err) {
+          logError(err, 'עדכון תוכן לאחר מחיקה מרובה של קבצים');
+          return res.status(500).json({ error: 'שגיאה בעדכון התוכן' });
+        }
+        
+        // Notify all affected screens
+        screenIds.forEach(screenId => {
+          io.to(screenId).emit('content_updated');
+        });
+        
+        logSuccess(`${deletedFiles} קבצי מדיה נמחקו בהצלחה`);
+        res.json({ 
+          message: `${deletedFiles} קבצי מדיה נמחקו בהצלחה`,
+          deleted_files: deletedFiles,
+          deleted_bytes: deletedBytes,
+          deleted_bytes_formatted: formatFileSize(deletedBytes),
+          affected_screens: screenIds.size
+        });
+      });
+    });
+  });
+});
+
+// Helper function to format file size
+function formatFileSize(bytes) {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
 // Socket.IO for real-time updates
 io.on('connection', (socket) => {
   console.log('Screen connected:', socket.id);

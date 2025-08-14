@@ -92,11 +92,91 @@ const MediaFilesManager = () => {
     return '📁';
   };
 
+  const getFileIconElement = (type, filePath) => {
+    const ext = filePath?.split('.').pop()?.toLowerCase();
+    
+    if (type === 'image') {
+      return (
+        <div className="file-icon-image">
+          <span className="icon-emoji">🖼️</span>
+          <span className="icon-text">{ext?.toUpperCase()}</span>
+        </div>
+      );
+    }
+    
+    if (type === 'video') {
+      return (
+        <div className="file-icon-video">
+          <span className="icon-emoji">🎥</span>
+          <span className="icon-text">{ext?.toUpperCase()}</span>
+        </div>
+      );
+    }
+    
+    return (
+      <div className="file-icon-unknown">
+        <span className="icon-emoji">📁</span>
+        <span className="icon-text">{ext?.toUpperCase()}</span>
+      </div>
+    );
+  };
+
   const getFileType = (filePath) => {
     const ext = filePath.split('.').pop()?.toLowerCase();
     if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg'].includes(ext)) return 'image';
     if (['mp4', 'avi', 'mov', 'wmv', 'webm'].includes(ext)) return 'video';
     return 'unknown';
+  };
+
+  const getFilePreview = (filePath, type) => {
+    if (!filePath) return null;
+    
+    const fullUrl = `http://localhost:3001${filePath}`;
+    
+    if (type === 'image') {
+      return (
+        <div className="file-preview-image">
+          <img 
+            src={fullUrl} 
+            alt="תצוגה מקדימה" 
+            onError={(e) => {
+              e.target.style.display = 'none';
+              e.target.nextSibling.style.display = 'block';
+            }}
+          />
+          <div className="file-preview-fallback" style={{display: 'none'}}>
+            <span>🖼️</span>
+            <small>תמונה</small>
+          </div>
+        </div>
+      );
+    }
+    
+    if (type === 'video') {
+      return (
+        <div className="file-preview-video">
+          <video 
+            src={fullUrl} 
+            preload="metadata"
+            onError={(e) => {
+              e.target.style.display = 'none';
+              e.target.nextSibling.style.display = 'block';
+            }}
+          />
+          <div className="file-preview-fallback" style={{display: 'none'}}>
+            <span>🎥</span>
+            <small>סרטון</small>
+          </div>
+        </div>
+      );
+    }
+    
+    return (
+      <div className="file-preview-unknown">
+        <span>📁</span>
+        <small>קובץ</small>
+      </div>
+    );
   };
 
   const formatDate = (dateString) => {
@@ -248,7 +328,11 @@ const MediaFilesManager = () => {
               </div>
               
               <div className="file-icon">
-                {getFileIcon(getFileType(file.file_path))}
+                {getFileIconElement(getFileType(file.file_path), file.file_path)}
+              </div>
+              
+              <div className="file-preview">
+                {getFilePreview(file.file_path, getFileType(file.file_path))}
               </div>
               
               <div className="file-info">

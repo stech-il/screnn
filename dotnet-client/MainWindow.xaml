@@ -15,7 +15,7 @@
     </Grid.ColumnDefinitions>
 
     <!-- Header / Status -->
-    <Grid Grid.ColumnSpan="2" Background="#001529" Height="56">
+    <Grid Grid.ColumnSpan="2" Background="#001529" Height="72">
       <Grid.ColumnDefinitions>
         <ColumnDefinition Width="*"/>
         <ColumnDefinition Width="Auto"/>
@@ -23,7 +23,7 @@
       </Grid.ColumnDefinitions>
       <!-- Left: clock + conn status + weather -->
       <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="12,0" VerticalAlignment="Center">
-        <TextBlock x:Name="ClockText" Foreground="White" Margin="0,0,12,0" VerticalAlignment="Center" FontSize="20"/>
+        <TextBlock x:Name="ClockText" Foreground="White" Margin="0,0,12,0" VerticalAlignment="Center" FontSize="26"/>
         <Ellipse x:Name="ConnDot" Width="12" Height="12" Fill="#ff3b30" Stroke="White" StrokeThickness="1" Margin="0,0,6,0" VerticalAlignment="Center"/>
         <TextBlock x:Name="ConnText" Foreground="White" VerticalAlignment="Center" FontSize="14" Text="מנותק"/>
         <Border Background="#0b223c" CornerRadius="6" BorderBrush="#1f3763" BorderThickness="1" Margin="12,0,0,0" Padding="8,4">
@@ -37,7 +37,7 @@
       <TextBlock x:Name="TitleText" Grid.Column="1" Foreground="White" FontSize="30" FontWeight="Bold" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center"/>
       <!-- Right: logo -->
       <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="12,0" VerticalAlignment="Center" FlowDirection="RightToLeft">
-        <Image x:Name="LogoImage" Width="72" Height="72" Margin="0,0,12,0" VerticalAlignment="Center"/>
+        <Image x:Name="LogoImage" Width="84" Height="84" Margin="0,0,12,0" VerticalAlignment="Center"/>
       </StackPanel>
     </Grid>
 
@@ -49,7 +49,7 @@
     </Grid>
 
     <!-- Messages side panel (styled card) -->
-    <Border Grid.Row="1" Grid.Column="1" Background="#0f1a30" BorderBrush="#15223b" BorderThickness="1" Padding="6" CornerRadius="10">
+    <Border Grid.Row="1" Grid.Column="1" Background="#0f1a30" BorderBrush="#15223b" BorderThickness="2" Padding="10" CornerRadius="12">
       <Border.Effect>
         <DropShadowEffect Color="#000000" BlurRadius="12" ShadowDepth="0" Opacity="0.4"/>
       </Border.Effect>
@@ -58,13 +58,13 @@
           <RowDefinition Height="Auto"/>
           <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
-        <TextBlock Text="הודעות ועדכונים" Foreground="#ffd700" FontWeight="Bold" Margin="12" Grid.Row="0" HorizontalAlignment="Center" FontSize="22"/>
-        <Grid Grid.Row="1" ClipToBounds="True">
+        <TextBlock Text="הודעות ועדכונים" Foreground="#ffd700" FontWeight="Bold" Margin="12" Grid.Row="0" HorizontalAlignment="Center" FontSize="24"/>
+        <Border Grid.Row="1" Background="#0b1c33" CornerRadius="10" Padding="8" Margin="8" BorderBrush="#203b66" BorderThickness="1" ClipToBounds="True">
           <Canvas x:Name="MessagesCanvas">
             <StackPanel x:Name="MessagesStack1"/>
             <StackPanel x:Name="MessagesStack2"/>
           </Canvas>
-        </Grid>
+        </Border>
       </Grid>
     </Border>
 
@@ -77,7 +77,7 @@
         </Grid.ColumnDefinitions>
         <TextBlock Text="חדשות:" Foreground="#ffd700" FontWeight="Bold" VerticalAlignment="Center" Margin="12,0" Grid.Column="0"/>
         <Canvas x:Name="TickerCanvas" ClipToBounds="True" Grid.Column="1">
-          <TextBlock x:Name="TickerText" Foreground="#ffd700" FontSize="16" Canvas.Left="10" Canvas.Top="18" FlowDirection="RightToLeft" TextAlignment="Right"/>
+          <TextBlock x:Name="TickerText" Foreground="#ffd700" FontSize="22" Canvas.Left="10" Canvas.Top="14" FlowDirection="RightToLeft" TextAlignment="Right"/>
         </Canvas>
       </Grid>
     </Border>
