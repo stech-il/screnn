@@ -25,7 +25,6 @@ import ResetPassword from './components/auth/ResetPassword';
 import UserManagement from './components/UserManagement';
 import PermissionsManager from './components/PermissionsManager';
 import FunctionPermissionsManager from './components/FunctionPermissionsManager';
-import MediaFilesManager from './components/MediaFilesManager';
 import Settings from './components/Settings';
 import socket from './components/socket';
 
@@ -264,12 +263,6 @@ function App() {
     });
 
     menuItems.push({
-      key: '/media-files',
-      icon: <FileImageOutlined />,
-      label: 'קבצי מדיה'
-    });
-
-    menuItems.push({
       key: '/settings',
       icon: <SettingOutlined />,
       label: 'הגדרות מערכת'
@@ -442,16 +435,6 @@ function App() {
               element={
                 (user.role === 'admin' || user.role === 'super_admin') ? (
                   <FunctionPermissionsManager socket={socket} />
-                ) : (
-                  <div>אין לך הרשאה לגשת לעמוד זה</div>
-                )
-              } 
-            />
-            <Route 
-              path="/media-files" 
-              element={
-                (user.role === 'admin' || user.role === 'super_admin') ? (
-                  <MediaFilesManager />
                 ) : (
                   <div>אין לך הרשאה לגשת לעמוד זה</div>
                 )

@@ -220,7 +220,8 @@ const MediaFilesManager = () => {
             disabled={deleteLoading}
             className="delete-selected-btn"
           >
-            🗑️ מחק נבחרים ({selectedFiles.size})
+            <span className="delete-icon">🗑️</span>
+            מחק נבחרים ({selectedFiles.size})
           </button>
         )}
       </div>
@@ -272,7 +273,7 @@ const MediaFilesManager = () => {
                   className="delete-btn"
                   title="מחק קובץ"
                 >
-                  🗑️
+                  <span className="delete-icon">🗑️</span>
                 </button>
               </div>
             </div>
