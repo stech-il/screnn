@@ -38,12 +38,9 @@ api.interceptors.response.use(
         description: 'נדרש להתחבר מחדש',
         placement: 'topRight'
       });
-      // Redirect back to admin base so the app renders the Login screen under /admin
-      if (!window.location.pathname.startsWith('/admin')) {
+      // הצגת מסך התחברות תתבצע על ידי האפליקציה; ננווט ל-/admin רק אם אנחנו מחוץ ל-/admin
+      if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/admin')) {
         window.location.href = '/admin';
-      } else if (window.location.pathname !== '/admin') {
-        window.history.replaceState({}, '', '/admin');
-        window.location.reload();
       }
     } else if (error.response?.status === 403) {
       notification.error({

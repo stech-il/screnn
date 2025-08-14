@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Form, Input, Button, Card, Typography, message, Space } from 'antd';
+import { Form, Input, Button, Card, Typography, message } from 'antd';
 import { UserOutlined, LockOutlined, LoginOutlined } from '@ant-design/icons';
 import api from '../utils/axios';
 
@@ -36,76 +36,34 @@ const Login = ({ onLoginSuccess }) => {
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-      padding: '20px'
+      background: '#0b1220',
+      padding: 16
     }}>
       <Card
-        style={{
-          width: 400,
-          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
-          borderRadius: '12px'
-        }}
-        bodyStyle={{ padding: '40px' }}
+        style={{ width: 360, borderRadius: 12, border: '1px solid #15223b', background: '#0f1a30' }}
+        bodyStyle={{ padding: 24 }}
       >
-        <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-          <Title level={2} style={{ color: '#1890ff', marginBottom: '8px' }}>
-            מערכת ניהול מסכים
-          </Title>
-          <Text type="secondary">התחבר למערכת הניהול</Text>
+        <div style={{ textAlign: 'center', marginBottom: 16 }}>
+          <Title level={3} style={{ color: '#e6f0ff', margin: 0 }}>כניסה</Title>
+          <Text style={{ color: '#9fb3c8' }}>פאנל ניהול Digitlex</Text>
         </div>
 
-        <Form
-          name="login"
-          onFinish={onFinish}
-          layout="vertical"
-          size="large"
-        >
-          <Form.Item
-            name="username"
-            rules={[{ required: true, message: 'אנא הכנס שם משתמש' }]}
-          >
-            <Input
-              prefix={<UserOutlined />}
-              placeholder="שם משתמש"
-              style={{ borderRadius: '8px' }}
-            />
+        <Form name="login" onFinish={onFinish} layout="vertical" size="large">
+          <Form.Item name="username" rules={[{ required: true, message: 'אנא הכנס שם משתמש' }]}
+            style={{ marginBottom: 12 }}>
+            <Input prefix={<UserOutlined />} placeholder="שם משתמש" style={{ borderRadius: 8 }} />
           </Form.Item>
 
-          <Form.Item
-            name="password"
-            rules={[{ required: true, message: 'אנא הכנס סיסמה' }]}
-          >
-            <Input.Password
-              prefix={<LockOutlined />}
-              placeholder="סיסמה"
-              style={{ borderRadius: '8px' }}
-            />
+          <Form.Item name="password" rules={[{ required: true, message: 'אנא הכנס סיסמה' }]} style={{ marginBottom: 12 }}>
+            <Input.Password prefix={<LockOutlined />} placeholder="סיסמה" style={{ borderRadius: 8 }} />
           </Form.Item>
 
-          <Form.Item>
-            <Button
-              type="primary"
-              htmlType="submit"
-              loading={loading}
-              icon={<LoginOutlined />}
-              style={{
-                width: '100%',
-                height: '48px',
-                borderRadius: '8px',
-                fontSize: '16px',
-                fontWeight: 'bold'
-              }}
-            >
-              התחבר
-            </Button>
-          </Form.Item>
+          <Button type="primary" htmlType="submit" loading={loading} icon={<LoginOutlined />} style={{ width: '100%', height: 44, borderRadius: 8 }}>התחבר</Button>
+
+          <div style={{ textAlign: 'center', marginTop: 12 }}>
+            <Text style={{ color: '#6e86a0', fontSize: 12 }}>ברירת מחדל: admin / admin123</Text>
+          </div>
         </Form>
-
-        <div style={{ textAlign: 'center', marginTop: '24px' }}>
-          <Text type="secondary" style={{ fontSize: '12px' }}>
-            ברירת מחדל: admin / admin123
-          </Text>
-        </div>
       </Card>
     </div>
   );

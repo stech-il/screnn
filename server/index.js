@@ -1391,6 +1391,7 @@ app.post('/api/admin/users', requireAuth, async (req, res) => {
             return res.status(500).json({ error: 'שגיאה ביצירת משתמש' });
           }
           logSuccess(`משתמש חדש נוצר: ${username} (${newUserId})`);
+          io.emit('users_updated');
           res.json({ id: newUserId, message: 'משתמש נוצר בהצלחה' });
         }
       );
@@ -1435,6 +1436,7 @@ app.delete('/api/admin/users/:userId', requireAuth, (req, res) => {
       }
       
       logSuccess(`משתמש נמחק בהצלחה: ${userId}`);
+      io.emit('users_updated');
       res.json({ message: 'משתמש נמחק בהצלחה' });
     });
   });
@@ -1479,6 +1481,7 @@ app.put('/api/admin/users/:userId', requireAuth, (req, res) => {
           return res.status(404).json({ error: 'משתמש לא נמצא' });
         }
         logSuccess(`משתמש עודכן בהצלחה: ${userId}`);
+        io.emit('users_updated');
         res.json({ message: 'משתמש עודכן בהצלחה' });
       });
     };
