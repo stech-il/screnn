@@ -50,11 +50,14 @@ fs.ensureDirSync(mediaPath);
 fs.ensureDirSync(dataPath);
 
 let mainWindow;
+let creatingWindow = false;
 let isOnline = false;
 let screenId = null;
 let syncInterval;
 
 function createWindow() {
+  if (creatingWindow) return;
+  creatingWindow = true;
   // יצירת החלון הראשי
   mainWindow = new BrowserWindow({
     width: 1920,
@@ -98,6 +101,7 @@ function createWindow() {
     }
     
     console.log('Window ready and configured');
+    creatingWindow = false;
   });
 
   // מניעת סגירה בטעות - רק במצב פרודקשן
@@ -363,7 +367,7 @@ async function sendHeartbeat() {
     if (!isOnline) {
       console.log('🔄 חיבור לשרת חזר - מעדכן סטטוס');
       isOnline = true;
-      mainWindow.webContents.send('connection-status', true);
+      mainWindow?.webContents.send('connection-status', true);
     }
   } catch (error) {
     console.error('❌ שגיאה בשליחת heartbeat:', error.message);
@@ -378,7 +382,7 @@ async function sendHeartbeat() {
     if (isOnline) {
       console.log('🔄 חיבור לשרת אבד - מעדכן סטטוס');
       isOnline = false;
-      mainWindow.webContents.send('connection-status', false);
+      mainWindow?.webContents.send('connection-status', false);
     }
   }
 }
@@ -512,7 +516,7 @@ app.whenReady().then(() => {
     app.dock.hide();
   }
   
-  createWindow();
+  if (!mainWindow) createWindow();
 
   // בדיקת חיבור ראשונית
   checkServerConnection().then(() => {
@@ -553,7 +557,13 @@ app.whenReady().then(() => {
   }, 60 * 1000); // 60 שניות במקום 30
 
   // בדיקת חיבור כל 15 שניות
-  setInterval(checkServerConnection, 15 * 1000);
+  setInterval(async () => {
+    await checkServerConnection();
+    if (!isOnline && screenId) {
+      // נסה heartbeat עדין בלי להפיל את האפליקציה
+      await sendHeartbeat();
+    }
+  }, 15 * 1000);
 
   // שליחת heartbeat כל 15 שניות
   setInterval(async () => {

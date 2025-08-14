@@ -353,7 +353,7 @@ async function saveManagementSettings() {
         
         // שמירת מזהה מסך חדש
         if (newScreenId && newScreenId !== screenId) {
-            await ipcRenderer.invoke('save-screen-id', newScreenId);
+            await ipcRenderer.invoke('set-screen-id', newScreenId);
             screenId = newScreenId;
             console.log(`מזהה מסך עודכן: ${screenId}`);
         }
