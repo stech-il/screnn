@@ -14,8 +14,9 @@ const { autoUpdater } = require('electron-updater');
 // הגדרות אפליקציה
 const isDev = process.env.NODE_ENV === 'development';
 
-// אחסון מקומי
-const store = new Store();
+// אחסון מקומי - שם קבוע כדי שהנתונים יישמרו עקבי בין גרסאות/סביבות
+const store = new Store({ name: 'digitlex-config' });
+console.log('📁 electron-store path:', store.path);
 
 // קבלת כתובת שרת מהאחסון או ברירת מחדל
 function getServerUrl() {
@@ -424,6 +425,8 @@ function setupScreenId() {
     });
   } else {
     console.log(`✅ מזהה מסך נטען: ${screenId}`);
+    // ודא שכותבים חזרה כדי לייצב את הקובץ אם הועתק ממכשיר אחר
+    store.set('screenId', screenId);
     syncWithServer();
   }
 }
@@ -433,7 +436,12 @@ ipcMain.handle('set-screen-id', async (event, id) => {
   console.log('📝 IPC: set-screen-id נקרא עם:', id);
   
   screenId = id.trim();
-  store.set('screenId', screenId);
+  try {
+    store.set('screenId', screenId);
+    console.log('💾 screenId נשמר אל:', store.path);
+  } catch (e) {
+    console.error('❌ שגיאה בשמירת screenId:', e);
+  }
   console.log(`✅ מזהה מסך נשמר: ${screenId}`);
   
   // שליחת heartbeat ראשוני
