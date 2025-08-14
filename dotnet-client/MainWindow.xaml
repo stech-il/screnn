@@ -11,7 +11,7 @@
     </Grid.RowDefinitions>
     <Grid.ColumnDefinitions>
       <ColumnDefinition Width="*"/>
-      <ColumnDefinition Width="480"/>
+      <ColumnDefinition Width="560"/>
     </Grid.ColumnDefinitions>
 
     <!-- Header / Status -->
@@ -37,15 +37,17 @@
       <TextBlock x:Name="TitleText" Grid.Column="1" Foreground="White" FontSize="30" FontWeight="Bold" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center"/>
       <!-- Right: logo -->
       <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="12,0" VerticalAlignment="Center" FlowDirection="RightToLeft">
-        <Image x:Name="LogoImage" Width="40" Height="40" Margin="0,0,12,0" VerticalAlignment="Center"/>
+        <Image x:Name="LogoImage" Width="72" Height="72" Margin="0,0,12,0" VerticalAlignment="Center"/>
       </StackPanel>
     </Grid>
 
     <!-- Content area -->
     <Grid Grid.Row="1" Grid.Column="0" Background="#000" Margin="8,8,4,8">
       <Image x:Name="ImageView" Stretch="Uniform" Visibility="Collapsed"/>
-      <MediaElement x:Name="VideoView" LoadedBehavior="Manual" UnloadedBehavior="Stop" Visibility="Collapsed" IsMuted="True"/>
-      <WebBrowser x:Name="HtmlView" Visibility="Collapsed"/>
+      <Border x:Name="VideoView" Background="#1a1a1a" Visibility="Collapsed">
+        <TextBlock Text="Video Player" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+      </Border>
+      <TextBlock x:Name="HtmlView" Foreground="White" Visibility="Collapsed" TextWrapping="Wrap"/>
     </Grid>
 
     <!-- Messages side panel (styled card) -->
@@ -60,10 +62,7 @@
         </Grid.RowDefinitions>
         <TextBlock Text="הודעות ועדכונים" Foreground="#ffd700" FontWeight="Bold" Margin="12" Grid.Row="0" HorizontalAlignment="Center" FontSize="22"/>
         <Grid Grid.Row="1" ClipToBounds="True">
-          <Canvas x:Name="MessagesCanvas">
-            <StackPanel x:Name="MessagesStack1"/>
-            <StackPanel x:Name="MessagesStack2"/>
-          </Canvas>
+          <Canvas x:Name="MessagesCanvas"/>
         </Grid>
       </Grid>
     </Border>

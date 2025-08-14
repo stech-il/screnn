@@ -1,478 +1,517 @@
 using Newtonsoft.Json;
-using SocketIOClient;
 using System;
 using System.IO;
 using System.Net;
 using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
-using Timers = System.Timers;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media.Imaging;
 using System.Windows.Media;
 using System.Windows.Threading;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
 
-namespace DigitlexViewer;
-
-public partial class MainWindow : Window
+namespace DigitlexViewer
 {
-    private readonly HttpClient _http;
-    private readonly CookieContainer _cookies = new();
-    private readonly string _appData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "DigitlexViewer");
-    private readonly string _cacheDir;
-    private string _serverUrl;
-    private string _screenId;
-    private SocketIOClient.SocketIO _socket;
-    private readonly Timers.Timer _hbTimer = new(15000);
-    private readonly Timers.Timer _syncTimer = new(60000);
-    private readonly DispatcherTimer _tickerTimer = new() { Interval = TimeSpan.FromMilliseconds(16) }; // ~60fps
-    private readonly DispatcherTimer _messagesScrollTimer = new() { Interval = TimeSpan.FromMilliseconds(16) }; // ~60fps גלילה חלקה
-    private double _messagesOffsetY = 0.0;
-    private double _tickerX = 10;
-
-    private int _currentIndex = 0;
-    private dynamic _contentItems;
-    private readonly DispatcherTimer _clockTimer = new() { Interval = TimeSpan.FromSeconds(1) };
-    private readonly DispatcherTimer _weatherTimer = new() { Interval = TimeSpan.FromMinutes(10) };
-    private string _lastContentSignature = string.Empty;
-    private string _currentItemKey = string.Empty;
-    private bool _started = false;
-
-    public MainWindow()
+    public class Message
     {
-        Directory.CreateDirectory(_appData);
-        _cacheDir = Path.Combine(_appData, "cache");
-        Directory.CreateDirectory(_cacheDir);
+        public string id { get; set; } = "";
+        public string text { get; set; } = "";
+        public string content { get; set; } = "";
+    }
 
-        var handler = new HttpClientHandler { CookieContainer = _cookies, AutomaticDecompression = DecompressionMethods.All };
-        _http = new HttpClient(handler);
-        InitializeComponent();
+    public partial class MainWindow : Window
+    {
+        private readonly HttpClient _http;
+        private readonly CookieContainer _cookies = new();
+        private readonly string _appData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "DigitlexViewer");
+        private readonly string _cacheDir;
+        private string _serverUrl = "https://screnn.onrender.com";
+        private string _screenId = "1";
+        private readonly System.Timers.Timer _hbTimer = new(15000);
+        private readonly System.Timers.Timer _syncTimer = new(60000);
+        private readonly DispatcherTimer _tickerTimer = new() { Interval = TimeSpan.FromMilliseconds(16) };
+        private List<Message> _messages = new List<Message>();
+        private StackPanel _messagesStack;
+        private double _messagesOffsetY = 0.0;
+        private double _singlePassHeight = 0.0;
+        private DateTime _lastRenderTime = DateTime.Now;
+        private const double _scrollSpeedPxPerSec = 30.0;
+        private double _tickerX = 10;
 
-        LoadConfig();
-        if (string.IsNullOrWhiteSpace(_serverUrl) || string.IsNullOrWhiteSpace(_screenId))
+        private int _currentIndex = 0;
+        private dynamic _contentItems = new { };
+        private readonly DispatcherTimer _clockTimer = new() { Interval = TimeSpan.FromSeconds(1) };
+        private readonly DispatcherTimer _weatherTimer = new() { Interval = TimeSpan.FromMinutes(10) };
+        private string _lastContentSignature = string.Empty;
+        private string _currentItemKey = string.Empty;
+        private bool _started = false;
+
+        public MainWindow()
         {
-            OpenSettings();
+            // Initialize required fields first
+            var handler = new HttpClientHandler { CookieContainer = _cookies, AutomaticDecompression = DecompressionMethods.All };
+            _http = new HttpClient(handler);
+            _cacheDir = Path.Combine(_appData, "cache");
+            
+            InitializeComponent();
+            
+            // Create directories
+            Directory.CreateDirectory(_appData);
+            Directory.CreateDirectory(_cacheDir);
+            
+            // Initialize messages
+            _messagesStack = new StackPanel();
+            MessagesCanvas.Children.Add(_messagesStack);
+            _messages.Add(new Message { text = "טוען הודעות..." });
+            LayoutRootMessages();
+            
+            // Start timers
+            _clockTimer.Tick += (_, _) => ClockText.Text = DateTime.Now.ToString("dd/MM/yyyy | HH:mm:ss");
+            _clockTimer.Start();
+            _weatherTimer.Tick += async (_, _) => await UpdateWeatherAsync();
+            _weatherTimer.Start();
+            _tickerTimer.Tick += (_, _) => AnimateTicker();
+            _tickerTimer.Start();
+            
+            // Load config and start
+            LoadConfig();
+            _ = StartAsync();
+            _ = UpdateWeatherAsync();
+            _ = LoadRSSAsync();
         }
-        else
+
+        private void LoadConfig()
         {
-            StartAsync();
-        }
-
-        _tickerTimer.Tick += (_, _) => AnimateTicker();
-        _tickerTimer.Start();
-        _messagesScrollTimer.Tick += (_, _) => AnimateMessages();
-        _messagesScrollTimer.Start();
-        _clockTimer.Tick += (_, _) => ClockText.Text = DateTime.Now.ToString("dd/MM/yyyy | HH:mm:ss");
-        _clockTimer.Start();
-        _weatherTimer.Tick += async (_, _) => await UpdateWeatherAsync();
-        _weatherTimer.Start();
-        _ = UpdateWeatherAsync();
-    }
-
-    private void LoadConfig()
-    {
-        var cfg = Path.Combine(_appData, "appsettings.json");
-        if (File.Exists(cfg))
-        {
-            dynamic obj = JsonConvert.DeserializeObject(File.ReadAllText(cfg))!;
-            _serverUrl = (string?)obj.serverUrl ?? "";
-            _screenId = (string?)obj.screenId ?? "";
-        }
-    }
-
-    private void SaveConfig()
-    {
-        var cfg = Path.Combine(_appData, "appsettings.json");
-        File.WriteAllText(cfg, JsonConvert.SerializeObject(new { serverUrl = _serverUrl, screenId = _screenId }, Formatting.Indented));
-    }
-
-    private async void StartAsync()
-    {
-        if (_started) return; // מניעת התחלה כפולה שגורמת לחיבורים חוזרים
-        _started = true;
-        _http.BaseAddress = new Uri(_serverUrl);
-
-        ConnectSocket();
-        _hbTimer.Elapsed += async (_, _) => await SendHeartbeatAsync();
-        _hbTimer.Start();
-        _syncTimer.Elapsed += async (_, _) => await SyncLoopAsync();
-        _syncTimer.Start();
-        await SendHeartbeatAsync();
-        await SyncLoopAsync();            // סינכרון נתונים שקט
-        await LoadContentAsync();         // התחלת הרוטציה בפועל
-    }
-
-    private void ConnectSocket()
-    {
-        try
-        {
-            _socket = new SocketIO(_serverUrl, new SocketIOOptions { Path = "/socket.io", Reconnection = true });
-            _socket.OnConnected += async (_, __) =>
+            try
             {
-                await Dispatcher.InvokeAsync(async () =>
+                var cfg = Path.Combine(_appData, "appsettings.json");
+                if (File.Exists(cfg))
                 {
-                    ConnText.Text = "מחובר";
-                    ConnDot.Fill = new SolidColorBrush(Color.FromRgb(0x34,0xC7,0x00));
-                    // טען שם מסך ולוגו לכותרת
-                    await LoadScreenHeaderAsync();
-                }, DispatcherPriority.Background);
-            };
-            _socket.On("content_updated", _ => Dispatcher.Invoke(async () => await LoadContentAsync(false)));
-            _socket.On("screen_status_updated", _ => Dispatcher.Invoke(async () => await LoadContentAsync(false)));
-            _ = _socket.ConnectAsync();
-        }
-        catch { /* ignore */ }
-    }
-
-    private async Task SendHeartbeatAsync()
-    {
-        try
-        {
-            var res = await _http.PostAsync($"/api/screens/{_screenId}/heartbeat", new StringContent("{}", Encoding.UTF8, "application/json"));
-            res.EnsureSuccessStatusCode();
-            Dispatcher.Invoke(() => {
-                ConnText.Text = "מחובר";
-                ConnDot.Fill = new SolidColorBrush(Color.FromRgb(0x34,0xC7,0x00));
-            });
-        }
-        catch { Dispatcher.Invoke(() => { ConnText.Text = "מנותק"; ConnDot.Fill = new SolidColorBrush(Color.FromRgb(0xFF,0x3B,0x30)); }); }
-    }
-
-    private async Task SyncLoopAsync()
-    {
-        await LoadContentAsync(false);
-        await LoadMessagesAsync();
-        await LoadRssAsync();
-    }
-
-    private async Task LoadContentAsync(bool advance = true)
-    {
-        try
-        {
-            var json = await _http.GetStringAsync($"/api/screens/{_screenId}/content/public");
-
-            // אם אין שינוי בתוכן ואין צורך להתקדם, אל תרנדר מחדש
-            if (!advance && json == _lastContentSignature)
-            {
-                return;
-            }
-
-            _lastContentSignature = json;
-            _contentItems = JsonConvert.DeserializeObject(json)!;
-            if (_contentItems.Count == 0) return;
-            // שמור על הפריט הנוכחי רק בעדכון נתונים (לא בזמן רוטציה)
-            if (!advance && !string.IsNullOrEmpty(_currentItemKey))
-            {
-                int found = -1;
-                for (int i = 0; i < _contentItems.Count; i++)
-                {
-                    string key = BuildItemKey(_contentItems[i]);
-                    if (key == _currentItemKey) { found = i; break; }
-                }
-                if (found >= 0) _currentIndex = found;
-            }
-            var item = _contentItems[_currentIndex % _contentItems.Count];
-            string type = item.type;
-            string title = item.title ?? "";
-            string content = item.content ?? "";
-            string filePath = item.file_path ?? null;
-
-            string nextKey = BuildItemKey(item);
-            // אם אין התקדמות וזה אותו פריט, אל תאפס את התצוגה
-            if (!advance && nextKey == _currentItemKey)
-            {
-                return;
-            }
-
-            Dispatcher.Invoke(() => {
-                ImageView.Visibility = Visibility.Collapsed;
-                VideoView.Visibility = Visibility.Collapsed;
-                HtmlView.Visibility = Visibility.Collapsed;
-            });
-
-            if (type == "image" || type == "ad")
-            {
-                var local = await DownloadAsync(filePath);
-                if (local != null)
-                {
-                    Dispatcher.Invoke(() => {
-                        ImageView.Source = new BitmapImage(new Uri(local));
-                        ImageView.Visibility = Visibility.Visible;
-                    });
+                    dynamic obj = JsonConvert.DeserializeObject(File.ReadAllText(cfg));
+                    _serverUrl = (string)obj?.serverUrl ?? "https://screnn.onrender.com";
+                    _screenId = (string)obj?.screenId ?? "1";
                 }
             }
-            else if (type == "video")
+            catch { /* ignore */ }
+        }
+
+        private async Task StartAsync()
+        {
+            if (_started) return;
+            _started = true;
+
+            try
             {
-                var local = await DownloadAsync(filePath);
-                if (local != null)
+                await LoadScreenHeaderAsync();
+                await LoadContentAsync(true);
+                await LoadMessagesAsync();
+                
+                // Start heartbeat and sync timers
+                _hbTimer.Elapsed += async (_, _) => await SendHeartbeatAsync();
+                _hbTimer.Start();
+                
+                _syncTimer.Elapsed += async (_, _) => 
                 {
-                    Dispatcher.Invoke(() => {
-                        VideoView.Source = new Uri(local);
-                        VideoView.Visibility = Visibility.Visible;
-                        VideoView.Position = TimeSpan.Zero;
-                        VideoView.Play();
-                    });
-                }
+                    await LoadContentAsync(false);
+                    await LoadMessagesAsync();
+                };
+                _syncTimer.Start();
             }
-            else // html/code/text
+            catch (Exception ex)
             {
                 Dispatcher.Invoke(() => {
-                    HtmlView.NavigateToString(content);
+                    TitleText.Text = $"שגיאה: {ex.Message}";
+                });
+            }
+        }
+
+        private async Task LoadScreenHeaderAsync()
+        {
+            try
+            {
+                Dispatcher.Invoke(() => {
+                    TitleText.Text = $"מתחבר לשרת...";
+                    ConnText.Text = "מתחבר";
+                    ConnDot.Fill = new SolidColorBrush(Colors.Yellow);
+                });
+
+                var response = await _http.GetAsync($"{_serverUrl}/api/screens/{_screenId}");
+                if (response.IsSuccessStatusCode)
+                {
+                    var json = await response.Content.ReadAsStringAsync();
+                    dynamic screen = JsonConvert.DeserializeObject(json);
+                    
+                    Dispatcher.Invoke(() => {
+                        TitleText.Text = (string)screen?.name ?? "מסך דיגיטלי";
+                        ConnText.Text = "מחובר";
+                        ConnDot.Fill = new SolidColorBrush(Color.FromRgb(0x34, 0xC7, 0x00));
+                    });
+                    
+                    // Load logo if exists
+                    string logoPath = (string)screen?.logo;
+                    if (!string.IsNullOrEmpty(logoPath))
+                    {
+                        var logoData = await DownloadAsync(logoPath);
+                        if (logoData != null)
+                        {
+                            Dispatcher.Invoke(() => {
+                                var bitmap = new BitmapImage();
+                                bitmap.BeginInit();
+                                bitmap.StreamSource = new MemoryStream(Convert.FromBase64String(logoData));
+                                bitmap.EndInit();
+                                LogoImage.Source = bitmap;
+                            });
+                        }
+                    }
+                }
+                else
+                {
+                    Dispatcher.Invoke(() => {
+                        TitleText.Text = $"שגיאת שרת: {response.StatusCode}";
+                        ConnText.Text = "לא מחובר";
+                        ConnDot.Fill = new SolidColorBrush(Colors.Red);
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                Dispatcher.Invoke(() => {
+                    TitleText.Text = $"שגיאה: {ex.Message}";
+                    ConnText.Text = "שגיאה";
+                    ConnDot.Fill = new SolidColorBrush(Colors.Red);
+                });
+            }
+        }
+
+        private async Task LoadContentAsync(bool advance)
+        {
+            try
+            {
+                var response = await _http.GetAsync($"{_serverUrl}/api/screens/{_screenId}/content");
+                if (response.IsSuccessStatusCode)
+                {
+                    var json = await response.Content.ReadAsStringAsync();
+                    dynamic content = JsonConvert.DeserializeObject(json);
+                    
+                    if (content?.items != null && ((Newtonsoft.Json.Linq.JArray)content.items).Count > 0)
+                    {
+                        _contentItems = content.items;
+                        
+                        if (advance || _currentIndex >= ((Newtonsoft.Json.Linq.JArray)_contentItems).Count)
+                        {
+                            _currentIndex = (_currentIndex + 1) % ((Newtonsoft.Json.Linq.JArray)_contentItems).Count;
+                        }
+                        
+                        await DisplayCurrentContent();
+                    }
+                    else
+                    {
+                        Dispatcher.Invoke(() => {
+                            HtmlView.Text = "אין תוכן זמין במסך זה";
+                            HtmlView.Visibility = Visibility.Visible;
+                        });
+                    }
+                }
+                else
+                {
+                    Dispatcher.Invoke(() => {
+                        HtmlView.Text = $"שגיאה בטעינת תוכן: {response.StatusCode}";
+                        HtmlView.Visibility = Visibility.Visible;
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                Dispatcher.Invoke(() => {
+                    HtmlView.Text = $"שגיאה: {ex.Message}";
                     HtmlView.Visibility = Visibility.Visible;
                 });
             }
+        }
 
-            _currentItemKey = nextKey;
-            // הבא בתור לפי display_duration
-            if (advance)
+        private async Task DisplayCurrentContent()
+        {
+            try
             {
-                int durationMs = (int)(item.display_duration ?? 5000);
-                if (durationMs < 100) durationMs *= 1000; // תמיכה בשניות
-                _ = Task.Run(async () => {
-                    await Task.Delay(durationMs);
-                    _currentIndex++;
-                    await LoadContentAsync();
+                var items = (Newtonsoft.Json.Linq.JArray)_contentItems;
+                if (items.Count == 0) return;
+                
+                var item = items[_currentIndex];
+                string type = (string)item["type"];
+                string content = (string)item["content"];
+                string filePath = (string)item["filePath"];
+
+                Dispatcher.Invoke(() => {
+                    ImageView.Visibility = Visibility.Collapsed;
+                    VideoView.Visibility = Visibility.Collapsed;
+                    HtmlView.Visibility = Visibility.Collapsed;
                 });
-            }
-        }
-        catch { /* ignore to keep viewer stable */ }
-    }
 
-    private static string BuildItemKey(dynamic item)
-    {
-        try
-        {
-            string type = item.type ?? "";
-            string title = item.title ?? "";
-            string content = item.content ?? "";
-            string filePath = item.file_path ?? "";
-            return $"{type}|{title}|{filePath}|{content}";
-        }
-        catch { return Guid.NewGuid().ToString(); }
-    }
-
-    private async Task LoadMessagesAsync()
-    {
-        try
-        {
-            var json = await _http.GetStringAsync($"/api/screens/{_screenId}/messages");
-            dynamic arr = JsonConvert.DeserializeObject(json)!;
-            Dispatcher.Invoke(() => {
-                MessagesStack1.Children.Clear();
-                MessagesStack2.Children.Clear();
-                foreach (var it in arr)
+                if (type == "image")
                 {
-                    MessagesStack1.Children.Add(BuildMessageCard((string?)it.content ?? ""));
-                    MessagesStack2.Children.Add(BuildMessageCard((string?)it.content ?? ""));
-                }
-                LayoutRootMessages();
-                _messagesOffsetY = 0.0;
-            });
-        }
-        catch { }
-    }
-
-    private async Task LoadRssAsync()
-    {
-        try
-        {
-            var json = await _http.GetStringAsync($"/api/screens/{_screenId}/rss-content");
-            dynamic arr = JsonConvert.DeserializeObject(json)!;
-            Dispatcher.Invoke(() => {
-                var titles = new System.Collections.Generic.List<string>();
-                foreach (var it in arr) titles.Add((string?)it.title ?? "");
-                // טיקר משמאל לימין
-                TickerText.Text = string.Join("     •     ", titles);
-                _tickerX = -TickerText.ActualWidth; // התחל משמאל לזכות
-            });
-        }
-        catch { }
-    }
-
-    private record RssItem
-    {
-        public string Title { get; set; } = "";
-        public string Description { get; set; } = "";
-    }
-
-    private record MsgItem
-    {
-        public string Content { get; set; } = "";
-    }
-
-    private async Task<string?> DownloadAsync(string relative)
-    {
-        if (string.IsNullOrWhiteSpace(relative)) return null;
-        var uri = new Uri(new Uri(_serverUrl), relative);
-        var local = Path.Combine(_cacheDir, Path.GetFileName(uri.LocalPath));
-        if (File.Exists(local)) return local;
-        try
-        {
-            using var stream = await _http.GetStreamAsync(uri);
-            using var fs = File.Create(local);
-            await stream.CopyToAsync(fs);
-            return local;
-        }
-        catch { return null; }
-    }
-
-    private async Task LoadScreenHeaderAsync()
-    {
-        try
-        {
-            var json = await _http.GetStringAsync($"/api/screens/{_screenId}");
-            dynamic obj = JsonConvert.DeserializeObject(json)!;
-            string name = (string?)obj.name ?? "";
-            string logo = (string?)obj.logo_url ?? "";
-            Dispatcher.Invoke(async () =>
-            {
-                // הצג את שם המסך בכותרת העליונה, ואת הלוגו אם קיים
-                if (!string.IsNullOrWhiteSpace(logo))
-                {
-                    var local = await DownloadAsync(logo);
-                    if (local != null)
+                    var imageData = await DownloadAsync(filePath);
+                    if (imageData != null)
                     {
-                        LogoImage.Source = new BitmapImage(new Uri(local));
+                        Dispatcher.Invoke(() => {
+                            var bitmap = new BitmapImage();
+                            bitmap.BeginInit();
+                            bitmap.StreamSource = new MemoryStream(Convert.FromBase64String(imageData));
+                            bitmap.EndInit();
+                            ImageView.Source = bitmap;
+                            ImageView.Visibility = Visibility.Visible;
+                        });
                     }
                 }
-                if (!string.IsNullOrWhiteSpace(name)) TitleText.Text = name;
-            });
+                else if (type == "video")
+                {
+                    Dispatcher.Invoke(() => {
+                        VideoView.Visibility = Visibility.Visible;
+                    });
+                }
+                else // html/text
+                {
+                    Dispatcher.Invoke(() => {
+                        HtmlView.Text = content;
+                        HtmlView.Visibility = Visibility.Visible;
+                    });
+                }
+            }
+            catch { /* ignore */ }
         }
-        catch { }
-    }
 
-    private async Task UpdateWeatherAsync()
-    {
-        try
+        private async Task<string?> DownloadAsync(string relative)
         {
-            // מיקום לפי IP (ללא מפתח)
-            double lat = 31.771959, lon = 35.217018; // ברירת מחדל ירושלים
-            try {
-                var ipJson = await _http.GetStringAsync("https://ipapi.co/json/");
-                dynamic ipObj = JsonConvert.DeserializeObject(ipJson)!;
-                lat = (double?)ipObj.latitude ?? lat;
-                lon = (double?)ipObj.longitude ?? lon;
-            } catch { }
-
-            // Open-Meteo API ללא מפתח
-            var url = $"https://api.open-meteo.com/v1/forecast?latitude={lat:0.####}&longitude={lon:0.####}&current_weather=true";
-            var resp = await _http.GetStringAsync(url);
-            dynamic obj = JsonConvert.DeserializeObject(resp)!;
-            double temp = (double?)obj.current_weather.temperature ?? 0;
-            int code = (int?)obj.current_weather.weathercode ?? 0;
-            string emoji = code switch
+            try
             {
-                0 => "☀️",
-                1 or 2 => "🌤️",
-                3 => "☁️",
-                45 or 48 => "🌫️",
-                51 or 53 or 55 => "🌦️",
-                61 or 63 or 65 => "🌧️",
-                71 or 73 or 75 => "❄️",
-                95 or 96 or 99 => "⛈️",
-                _ => "☁️"
+                var response = await _http.GetAsync($"{_serverUrl}{relative}");
+                if (response.IsSuccessStatusCode)
+                {
+                    var bytes = await response.Content.ReadAsByteArrayAsync();
+                    return Convert.ToBase64String(bytes);
+                }
+            }
+            catch { /* ignore */ }
+            return null;
+        }
+
+        private async Task LoadMessagesAsync()
+        {
+            try
+            {
+                var response = await _http.GetAsync($"{_serverUrl}/api/screens/{_screenId}/messages");
+                if (response.IsSuccessStatusCode)
+                {
+                    var json = await response.Content.ReadAsStringAsync();
+                    var messages = JsonConvert.DeserializeObject<List<Message>>(json);
+                    
+                    if (messages != null && messages.Count > 0)
+                    {
+                        var uniqueMessages = new HashSet<string>();
+                        _messages.Clear();
+                        
+                        foreach (var msg in messages)
+                        {
+                            var text = msg.text?.Trim();
+                            if (!string.IsNullOrEmpty(text) && uniqueMessages.Add(text))
+                            {
+                                _messages.Add(new Message { text = text });
+                            }
+                        }
+                    }
+                    else
+                    {
+                        _messages.Clear();
+                        _messages.Add(new Message { text = "אין הודעות חדשות כרגע" });
+                    }
+                    
+                    Dispatcher.Invoke(() => LayoutRootMessages());
+                }
+            }
+            catch
+            {
+                _messages.Clear();
+                _messages.Add(new Message { text = "אין הודעות חדשות כרגע" });
+                Dispatcher.Invoke(() => LayoutRootMessages());
+            }
+        }
+
+        private void LayoutRootMessages()
+        {
+            if (_messagesStack == null) return;
+            
+            _messagesStack.Children.Clear();
+            
+            var originalMessages = _messages.Count > 0 ? _messages : new List<Message> { new Message { text = "אין הודעות חדשות כרגע" } };
+            var viewportHeight = MessagesCanvas.ActualHeight > 0 ? MessagesCanvas.ActualHeight : 360;
+            
+            // Calculate total height needed
+            double totalHeight = 0;
+            var tempElements = new List<UIElement>();
+            
+            foreach (var msg in originalMessages)
+            {
+                var textBlock = new TextBlock
+                {
+                    Text = msg.text,
+                    Foreground = new SolidColorBrush(Colors.White),
+                    FontSize = 18,
+                    FontWeight = FontWeights.Bold,
+                    Margin = new Thickness(12, 8, 12, 8),
+                    TextWrapping = TextWrapping.Wrap,
+                    Background = new SolidColorBrush(Color.FromArgb(40, 255, 255, 255)),
+                    Padding = new Thickness(12, 8, 12, 8)
+                };
+                
+                textBlock.Measure(new Size(480, double.PositiveInfinity));
+                totalHeight += textBlock.DesiredSize.Height;
+                tempElements.Add(textBlock);
+            }
+            
+            _singlePassHeight = totalHeight;
+            
+            // Add enough duplicates for smooth scrolling
+            int duplicatesNeeded = Math.Max(1, (int)Math.Ceiling((viewportHeight * 2) / totalHeight));
+            
+            for (int i = 0; i < duplicatesNeeded; i++)
+            {
+                foreach (var element in tempElements)
+                {
+                    _messagesStack.Children.Add(CloneMessageElement(element));
+                }
+            }
+            
+            StartMessagesAnimation();
+        }
+
+        private UIElement CloneMessageElement(UIElement original)
+        {
+            if (original is TextBlock textBlock)
+            {
+                return new TextBlock
+                {
+                    Text = textBlock.Text,
+                    Foreground = textBlock.Foreground,
+                    FontSize = textBlock.FontSize,
+                    FontWeight = textBlock.FontWeight,
+                    Margin = textBlock.Margin,
+                    TextWrapping = textBlock.TextWrapping,
+                    Background = textBlock.Background,
+                    Padding = textBlock.Padding
+                };
+            }
+            return new TextBlock();
+        }
+
+        private void StartMessagesAnimation()
+        {
+            CompositionTarget.Rendering -= AnimateMessages;
+            CompositionTarget.Rendering += AnimateMessages;
+        }
+
+        private void AnimateMessages(object? sender, EventArgs e)
+        {
+            var now = DateTime.Now;
+            var deltaTime = (now - _lastRenderTime).TotalSeconds;
+            _lastRenderTime = now;
+            
+            _messagesOffsetY -= _scrollSpeedPxPerSec * deltaTime;
+            
+            if (_messagesOffsetY <= -_singlePassHeight)
+            {
+                _messagesOffsetY += _singlePassHeight;
+            }
+            
+            Canvas.SetTop(_messagesStack, _messagesOffsetY);
+        }
+
+        private async Task SendHeartbeatAsync()
+        {
+            try
+            {
+                await _http.PostAsync($"{_serverUrl}/api/screens/{_screenId}/heartbeat", new StringContent(""));
+            }
+            catch { /* ignore */ }
+        }
+
+        private async Task UpdateWeatherAsync()
+        {
+            try
+            {
+                var locationResponse = await _http.GetAsync("http://ipapi.co/json/");
+                if (locationResponse.IsSuccessStatusCode)
+                {
+                    var locationJson = await locationResponse.Content.ReadAsStringAsync();
+                    dynamic location = JsonConvert.DeserializeObject(locationJson);
+                    
+                    double lat = (double)location.latitude;
+                    double lon = (double)location.longitude;
+                    
+                    var weatherResponse = await _http.GetAsync($"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current_weather=true");
+                    if (weatherResponse.IsSuccessStatusCode)
+                    {
+                        var weatherJson = await weatherResponse.Content.ReadAsStringAsync();
+                        dynamic weather = JsonConvert.DeserializeObject(weatherJson);
+                        
+                        double temp = (double)weather.current_weather.temperature;
+                        int weatherCode = (int)weather.current_weather.weathercode;
+                        
+                        string emoji = GetWeatherEmoji(weatherCode);
+                        
+                        Dispatcher.Invoke(() => {
+                            WeatherEmoji.Text = emoji;
+                            WeatherText.Text = $"{temp:F0}°C";
+                        });
+                    }
+                }
+            }
+            catch { /* ignore */ }
+        }
+
+        private string GetWeatherEmoji(int code)
+        {
+            return code switch
+            {
+                0 => "☀️",  // Clear sky
+                1 or 2 or 3 => "⛅",  // Partly cloudy
+                45 or 48 => "🌫️",  // Fog
+                51 or 53 or 55 => "🌦️",  // Drizzle
+                61 or 63 or 65 => "🌧️",  // Rain
+                71 or 73 or 75 => "🌨️",  // Snow
+                95 or 96 or 99 => "⛈️",  // Thunderstorm
+                _ => "🌤️"  // Default
             };
-            Dispatcher.Invoke(() =>
-            {
-                WeatherEmoji.Text = emoji;
-                WeatherText.Text = $"{temp:0}°C";
-            });
         }
-        catch { }
-    }
 
-    private void OpenSettings_Click(object sender, RoutedEventArgs e) => OpenSettings();
-
-    private void OpenSettings()
-    {
-        var dlg = new SettingsWindow(_serverUrl, _screenId);
-        if (dlg.ShowDialog() == true)
+        private void AnimateTicker()
         {
-            _serverUrl = dlg.ServerUrl;
-            _screenId = dlg.ScreenId;
-            SaveConfig();
-            StartAsync();
-        }
-    }
-
-    private void AnimateTicker()
-    {
-        try
-        {
-            // fetch RSS/messages periodically in sync timer (future); now just move text
-            Canvas.SetLeft(TickerText, _tickerX);
-            _tickerX -= 2; // ימין → שמאל (טקסט RTL)
-            if (_tickerX + TickerText.ActualWidth < 0)
+            _tickerX -= 2;
+            if (_tickerX < -TickerText.ActualWidth)
             {
                 _tickerX = TickerCanvas.ActualWidth;
             }
+            Canvas.SetLeft(TickerText, _tickerX);
         }
-        catch { }
-    }
 
-    private void AnimateMessages()
-    {
-        try
+        private void Window_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
         {
-            double speed = 0.8;
-            _messagesOffsetY -= speed;
-            Canvas.SetTop(MessagesStack1, _messagesOffsetY);
-            Canvas.SetTop(MessagesStack2, _messagesOffsetY + MessagesStack1.ActualHeight);
-            if (_messagesOffsetY <= -MessagesStack1.ActualHeight)
+            if (e.Key == System.Windows.Input.Key.Escape)
             {
-                _messagesOffsetY += MessagesStack1.ActualHeight;
+                this.Close();
             }
-        }
-        catch { }
-    }
-
-    private FrameworkElement BuildMessageCard(string text)
-    {
-        var border = new Border
-        {
-            Background = (Brush)new BrushConverter().ConvertFromString("#132544"),
-            CornerRadius = new CornerRadius(6),
-            BorderBrush = (Brush)new BrushConverter().ConvertFromString("#1f3763"),
-            BorderThickness = new Thickness(1),
-            Padding = new Thickness(10),
-            Margin = new Thickness(8, 12, 8, 0)
-        };
-        var tb = new TextBlock
-        {
-            Text = text,
-            Foreground = (Brush)new BrushConverter().ConvertFromString("#e6f0ff"),
-            TextWrapping = TextWrapping.Wrap,
-            TextAlignment = TextAlignment.Right,
-            FontSize = 19
-        };
-        border.Child = tb;
-        return border;
-    }
-
-    private void LayoutRootMessages()
-    {
-        MessagesStack1.Measure(new Size(MessagesCanvas.ActualWidth, double.PositiveInfinity));
-        MessagesStack2.Measure(new Size(MessagesCanvas.ActualWidth, double.PositiveInfinity));
-        Canvas.SetLeft(MessagesStack1, 0);
-        Canvas.SetLeft(MessagesStack2, 0);
-        Canvas.SetTop(MessagesStack1, 0);
-        Canvas.SetTop(MessagesStack2, MessagesStack1.DesiredSize.Height);
-    }
-
-    private void Exit_Click(object sender, RoutedEventArgs e) => Close();
-
-    private void Window_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
-    {
-        if (e.Key == System.Windows.Input.Key.Escape)
-        {
-            Close();
-        }
-        if (e.Key == System.Windows.Input.Key.F8)
-        {
-            OpenSettings();
+            else if (e.Key == System.Windows.Input.Key.F5)
+            {
+                var settings = new SettingsWindow(_serverUrl, _screenId);
+                if (settings.ShowDialog() == true)
+                {
+                    _serverUrl = settings.ServerUrl;
+                    _screenId = settings.ScreenId;
+                    _ = StartAsync();
+                }
+            }
         }
     }
 }
-
-
