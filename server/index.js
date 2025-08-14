@@ -11,6 +11,7 @@ const http = require('http');
 const bcrypt = require('bcrypt');
 const session = require('express-session');
 const SQLiteStore = require('connect-sqlite3')(session);
+const nodemailer = require('nodemailer');
 
 // Add detailed logging
 const logError = (error, context = '') => {
@@ -272,6 +273,16 @@ db.serialize(() => {
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )`);
 
+  // Password reset tokens
+  db.run(`CREATE TABLE IF NOT EXISTS password_resets (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    token TEXT NOT NULL UNIQUE,
+    expires_at DATETIME NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users (id)
+  )`);
+
   // Screen permissions table
   db.run(`CREATE TABLE IF NOT EXISTS screen_permissions (
     id TEXT PRIMARY KEY,
@@ -430,6 +441,72 @@ app.post('/api/auth/login', async (req, res) => {
     } catch (error) {
       logError(error, 'התחברות - שגיאה כללית');
       res.status(500).json({ error: 'שגיאה בשרת' });
+    }
+  });
+});
+
+// Password reset request
+app.post('/api/auth/forgot', (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: 'נדרש אימייל' });
+
+  db.get('SELECT id, username, email FROM users WHERE email = ? AND is_active = 1', [email], async (err, user) => {
+    if (err) return res.status(500).json({ error: 'שגיאה בשרת' });
+    // השב תמיד 200 כדי לא לחשוף אם המייל קיים
+    if (!user) return res.json({ message: 'אם המייל קיים במערכת תישלח הודעה' });
+
+    // צור טוקן
+    const token = uuidv4();
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // שעה
+
+    db.run(
+      'INSERT INTO password_resets (id, user_id, token, expires_at) VALUES (?, ?, ?, ?)',
+      [uuidv4(), user.id, token, expiresAt],
+      async (insertErr) => {
+        if (insertErr) return res.status(500).json({ error: 'שגיאה ביצירת בקשת איפוס' });
+
+        try {
+          const transporter = nodemailer.createTransport({
+            service: 'gmail',
+            auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
+          });
+          const baseUrl = process.env.PUBLIC_URL || `http://localhost:${PORT}`;
+          const resetUrl = `${baseUrl}/admin/reset?token=${encodeURIComponent(token)}`;
+          await transporter.sendMail({
+            from: process.env.SMTP_FROM || process.env.SMTP_USER,
+            to: user.email,
+            subject: 'איפוס סיסמה - Digitlex',
+            html: `<p>שלום ${user.username},</p><p>כדי לאפס סיסמה לחץ על הקישור:</p><p><a href="${resetUrl}">${resetUrl}</a></p><p>הקישור תקף לשעה.</p>`
+          });
+        } catch (mailErr) {
+          logError(mailErr, 'שליחת מייל איפוס');
+          // גם במקרה כשל דוא"ל נשיב 200 כדי לא לחשוף
+        }
+
+        res.json({ message: 'אם המייל קיים במערכת תישלח הודעה' });
+      }
+    );
+  });
+});
+
+// Password reset confirm
+app.post('/api/auth/reset', async (req, res) => {
+  const { token, password } = req.body;
+  if (!token || !password) return res.status(400).json({ error: 'טוקן וסיסמה נדרשים' });
+
+  db.get('SELECT pr.user_id FROM password_resets pr WHERE pr.token = ? AND pr.expires_at > CURRENT_TIMESTAMP', [token], async (err, row) => {
+    if (err) return res.status(500).json({ error: 'שגיאה בשרת' });
+    if (!row) return res.status(400).json({ error: 'טוקן לא תקף או פג תוקף' });
+
+    try {
+      const hash = await bcrypt.hash(password, 10);
+      db.run('UPDATE users SET password = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [hash, row.user_id], (updErr) => {
+        if (updErr) return res.status(500).json({ error: 'שגיאה בעדכון סיסמה' });
+        db.run('DELETE FROM password_resets WHERE token = ?', [token]);
+        res.json({ message: 'סיסמה אופסה בהצלחה' });
+      });
+    } catch (e) {
+      res.status(500).json({ error: 'שגיאה בעיבוד הסיסמה' });
     }
   });
 });

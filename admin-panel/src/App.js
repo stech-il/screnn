@@ -20,6 +20,8 @@ import ScreensList from './components/ScreensList';
 import ScreenDetail from './components/ScreenDetail';
 import CreateScreen from './components/CreateScreen';
 import Login from './components/Login';
+import ForgotPassword from './components/auth/ForgotPassword';
+import ResetPassword from './components/auth/ResetPassword';
 import UserManagement from './components/UserManagement';
 import PermissionsManager from './components/PermissionsManager';
 import FunctionPermissionsManager from './components/FunctionPermissionsManager';
@@ -328,6 +330,8 @@ function App() {
           minHeight: 280
         }}>
           <Routes>
+            <Route path="/forgot" element={<ForgotPassword />} />
+            <Route path="/reset" element={<ResetPassword />} />
             <Route 
               path="/" 
               element={

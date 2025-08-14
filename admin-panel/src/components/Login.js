@@ -61,7 +61,9 @@ const Login = ({ onLoginSuccess }) => {
           <Button type="primary" htmlType="submit" loading={loading} icon={<LoginOutlined />} style={{ width: '100%', height: 44, borderRadius: 8 }}>התחבר</Button>
 
           <div style={{ textAlign: 'center', marginTop: 12 }}>
-            <Text style={{ color: '#6e86a0', fontSize: 12 }}>ברירת מחדל: admin / admin123</Text>
+            <Button type="link" style={{ color: '#8fb1ff' }} onClick={() => window.location.href = '/admin/forgot'}>
+              שכחתי סיסמה
+            </Button>
           </div>
         </Form>
       </Card>
