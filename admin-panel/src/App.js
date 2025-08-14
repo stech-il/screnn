@@ -191,9 +191,15 @@ function App() {
     );
   }
 
-  // Show login if not authenticated
+  // Public routes when not authenticated (login/forgot/reset)
   if (!user) {
-    return <Login onLoginSuccess={handleLoginSuccess} />;
+    return (
+      <Routes>
+        <Route path="/forgot" element={<ForgotPassword />} />
+        <Route path="/reset" element={<ResetPassword />} />
+        <Route path="*" element={<Login onLoginSuccess={handleLoginSuccess} />} />
+      </Routes>
+    );
   }
 
   const menuItems = [
