@@ -21,9 +21,11 @@ const MediaFilesManager = () => {
     try {
       setLoading(true);
       const response = await axios.get('/api/admin/media-files');
+      console.log('📁 קבצי מדיה התקבלו מהשרת:', response.data);
       setMediaFiles(response.data);
       setError(null);
     } catch (err) {
+      console.error('❌ שגיאה בטעינת קבצי מדיה:', err);
       setError('שגיאה בטעינת קבצי מדיה: ' + (err.response?.data?.error || err.message));
     } finally {
       setLoading(false);
@@ -152,9 +154,19 @@ const MediaFilesManager = () => {
   };
 
   const getFilePreview = (filePath, type) => {
-    if (!filePath) return null;
+    if (!filePath) {
+      console.log('❌ אין file_path עבור תצוגה מקדימה');
+      return (
+        <div className="file-preview-unknown">
+          <span>❓</span>
+          <small>אין קובץ</small>
+        </div>
+      );
+    }
     
-    const fullUrl = `http://localhost:3001${filePath}`;
+    // Build full URL - handle both absolute and relative paths
+    const fullUrl = filePath.startsWith('http') ? filePath : `${window.location.origin}${filePath}`;
+    console.log('🖼️ URL תצוגה מקדימה:', fullUrl);
     
     if (type === 'image') {
       return (
@@ -162,7 +174,9 @@ const MediaFilesManager = () => {
           <img 
             src={fullUrl} 
             alt="תצוגה מקדימה" 
+            onLoad={() => console.log('✅ תמונה נטענה:', fullUrl)}
             onError={(e) => {
+              console.error('❌ שגיאה בטעינת תמונה:', fullUrl, e);
               e.target.style.display = 'none';
               e.target.nextSibling.style.display = 'block';
             }}
@@ -181,7 +195,9 @@ const MediaFilesManager = () => {
           <video 
             src={fullUrl} 
             preload="metadata"
+            onLoadedMetadata={() => console.log('✅ סרטון נטען:', fullUrl)}
             onError={(e) => {
+              console.error('❌ שגיאה בטעינת סרטון:', fullUrl, e);
               e.target.style.display = 'none';
               e.target.nextSibling.style.display = 'block';
             }}
@@ -348,51 +364,62 @@ const MediaFilesManager = () => {
             {searchTerm || filterType !== 'all' ? 'לא נמצאו קבצים מתאימים' : 'אין קבצי מדיה'}
           </div>
         ) : (
-          sortedFiles.map(file => (
-            <div key={file.content_id} className="media-file-item">
-              <div className="file-checkbox">
-                <input
-                  type="checkbox"
-                  checked={selectedFiles.has(file.content_id)}
-                  onChange={() => handleFileSelection(file.content_id)}
-                />
-              </div>
-              
-              <div className="file-icon">
-                {getFileIconElement(getFileType(file.file_path), file.file_path)}
-              </div>
-              
-              <div className="file-preview">
-                {getFilePreview(file.file_path, getFileType(file.file_path))}
-              </div>
-              
-              <div className="file-info">
-                <div className="file-title">{file.title || 'ללא כותרת'}</div>
-                <div className="file-details">
-                  <span className="screen-name">מסך: {file.screen_name}</span>
-                  <span className="file-path">{file.file_path}</span>
+          sortedFiles.map(file => {
+            console.log('📄 מציג קובץ:', {
+              content_id: file.content_id,
+              title: file.title,
+              file_path: file.file_path,
+              file_size: file.file_size,
+              file_size_formatted: file.file_size_formatted,
+              file_exists: file.file_exists
+            });
+            
+            return (
+              <div key={file.content_id} className="media-file-item">
+                <div className="file-checkbox">
+                  <input
+                    type="checkbox"
+                    checked={selectedFiles.has(file.content_id)}
+                    onChange={() => handleFileSelection(file.content_id)}
+                  />
                 </div>
-                <div className="file-meta">
-                  <span>גודל: {file.file_size_formatted}</span>
-                  <span>נוצר: {formatDate(file.created_at)}</span>
-                  {file.updated_at !== file.created_at && (
-                    <span>עודכן: {formatDate(file.updated_at)}</span>
-                  )}
+                
+                <div className="file-icon">
+                  {getFileIconElement(getFileType(file.file_path), file.file_path)}
+                </div>
+                
+                <div className="file-preview">
+                  {getFilePreview(file.file_path, getFileType(file.file_path))}
+                </div>
+                
+                <div className="file-info">
+                  <div className="file-title">{file.title || 'ללא כותרת'}</div>
+                  <div className="file-details">
+                    <span className="screen-name">מסך: {file.screen_name}</span>
+                    <span className="file-path">{file.file_path}</span>
+                  </div>
+                  <div className="file-meta">
+                    <span>גודל: {file.file_size_formatted || 'לא ידוע'}</span>
+                    <span>נוצר: {formatDate(file.created_at)}</span>
+                    {file.updated_at !== file.created_at && (
+                      <span>עודכן: {formatDate(file.updated_at)}</span>
+                    )}
+                  </div>
+                </div>
+                
+                <div className="file-actions">
+                  <button 
+                    onClick={() => deleteFile(file.content_id)}
+                    disabled={deleteLoading}
+                    className="delete-btn"
+                    title="מחק קובץ"
+                  >
+                    <span className="delete-icon">×</span>
+                  </button>
                 </div>
               </div>
-              
-              <div className="file-actions">
-                <button 
-                  onClick={() => deleteFile(file.content_id)}
-                  disabled={deleteLoading}
-                  className="delete-btn"
-                  title="מחק קובץ"
-                >
-                  <span className="delete-icon">×</span>
-                </button>
-              </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
     </div>
