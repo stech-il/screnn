@@ -127,9 +127,15 @@ code {
 
   .ant-table {
     font-size: 12px;
+    overflow-x: auto;
   }
 
   .ant-form-item {
     margin-bottom: 12px;
   }
+
+  h1, h2, h3, .ant-typography { font-size: 90%; }
+  .ant-btn { height: 36px; padding: 0 12px; }
+  .ant-card-body { padding: 12px; }
+  .screen-card .ant-card-meta-title { white-space: normal; }
 }

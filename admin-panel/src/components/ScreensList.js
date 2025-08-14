@@ -235,7 +235,7 @@ const ScreensList = ({ screens, loading, onRefresh, user, socket }) => {
           )}
         </Empty>
       ) : (
-        <Row gutter={[16, 16]}>
+        <Row gutter={[12, 12]}>
           {screens.map(screen => {
             const status = getScreenStatus(screen.last_seen);
             
