@@ -32,9 +32,12 @@ const ScreensList = ({ screens, loading, onRefresh, user, socket }) => {
     socket.on('screen_name_updated', ({ id, name }) => {
       onRefresh();
     });
-    // עדכון סטטוס מסך
+    // עדכון סטטוס מסך - אופטימיזציה למניעת ריענון מיותר
     socket.on('screen_status_updated', ({ id, last_seen }) => {
-      onRefresh();
+      console.log('📡 ScreensList: screen_status_updated received for', id);
+      // במקום לרענן הכל, נעדכן רק אם באמת צריך
+      // הרענון יקרה כבר ב-App.js דרך ה-setScreens
+      // אז אנחנו לא צריכים onRefresh() נוסף כאן
     });
     // עדכון תוכן
     socket.on('content_updated', () => {
@@ -202,7 +205,7 @@ const ScreensList = ({ screens, loading, onRefresh, user, socket }) => {
         <Space wrap>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#52c41a', animation: 'pulse 2s infinite' }} />
-            {!isMobile && (<Text type="secondary" style={{ fontSize: 12 }}>מתעדכן אוטומטית כל דקה</Text>)}
+            {!isMobile && (<Text type="secondary" style={{ fontSize: 12 }}>מתעדכן אוטומטית בשקט</Text>)}
           </div>
           <Button size={isMobile ? 'small' : 'middle'} icon={<ReloadOutlined />} onClick={onRefresh}>רענן</Button>
           {(user?.role === 'admin' || user?.role === 'super_admin') && (

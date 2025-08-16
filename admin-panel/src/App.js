@@ -132,16 +132,23 @@ function App() {
 
     console.log('🔌 הגדרת Socket listeners בזמן אמת...');
 
-    // עדכון סטטוס מסכים בזמן אמת (last_seen)
+    // עדכון סטטוס מסכים בזמן אמת (last_seen) - עם אופטימיזציה למניעת עדכונים מיותרים
     socket.on('screen_status_updated', (data) => {
       console.log('📡 screen_status_updated received:', data);
-      setScreens(prevScreens => 
-        prevScreens.map(screen => 
+      setScreens(prevScreens => {
+        const existingScreen = prevScreens.find(screen => screen.id === data.id);
+        // בדיקה אם באמת יש שינוי בזמן last_seen כדי למנוע רענון מיותר
+        if (existingScreen && existingScreen.last_seen === data.last_seen) {
+          console.log('🔇 מדלג על עדכון - אין שינוי בזמן last_seen');
+          return prevScreens; // לא משנה כלום אם הזמן זהה
+        }
+        
+        return prevScreens.map(screen => 
           screen.id === data.id 
             ? { ...screen, last_seen: data.last_seen }
             : screen
-        )
-      );
+        );
+      });
     });
 
     // עדכון מסכים שנמחקו

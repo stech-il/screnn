@@ -24,7 +24,7 @@ public partial class MainWindow : Window
     private string _serverUrl;
     private string _screenId;
     private SocketIOClient.SocketIO _socket;
-    private readonly Timers.Timer _hbTimer = new(15000);
+    private readonly Timers.Timer _hbTimer = new(30000); // שונה מ-15 ל-30 שניות לטובת עדכון שקט יותר
     private readonly Timers.Timer _syncTimer = new(60000);
     private readonly DispatcherTimer _tickerTimer = new() { Interval = TimeSpan.FromMilliseconds(16) }; // ~60fps
     private readonly DispatcherTimer _messagesScrollTimer = new() { Interval = TimeSpan.FromMilliseconds(16) }; // גיבוי

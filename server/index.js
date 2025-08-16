@@ -994,10 +994,15 @@ app.get('/api/screens/:id', (req, res) => {
   });
 });
 
+// מעקב אחר آخר heartbeat לכל מסך למניעת עדכונים מיותרים
+const lastHeartbeatTime = new Map();
+const HEARTBEAT_UPDATE_THRESHOLD = 30000; // עדכון רק כל 30 שניות
+
 // Screen heartbeat endpoint
 app.post('/api/screens/:id/heartbeat', (req, res) => {
   const { id } = req.params;
   const currentTime = new Date().toISOString();
+  const now = Date.now();
   
   // Check if this is a viewer (client) or admin panel request
   const userAgent = req.headers['user-agent'] || '';
@@ -1016,7 +1021,14 @@ app.post('/api/screens/:id/heartbeat', (req, res) => {
   // Only update last_seen for actual client viewers, not admin panel
   if (isClientViewer) {
     const currentTimeISO = new Date().toISOString();
+    
+    // בדיקה אם צריך לשלוח עדכון לפאנל הניהול
+    const lastUpdate = lastHeartbeatTime.get(id) || 0;
+    const shouldNotifyAdmin = now - lastUpdate >= HEARTBEAT_UPDATE_THRESHOLD;
+    
     console.log(`💓 מעדכן last_seen למסך צפייה: ${currentTimeISO}`);
+    console.log(`🔔 צריך לעדכן פאנל ניהול: ${shouldNotifyAdmin ? 'כן' : 'לא'} (${Math.round((now - lastUpdate)/1000)}s מאז עדכון אחרון)`);
+    
     db.run('UPDATE screens SET last_seen = ? WHERE id = ?', [currentTimeISO, id], function(err) {
       if (err) {
         logError(err, 'heartbeat - עדכון מסך צפייה');
@@ -1052,21 +1064,31 @@ app.post('/api/screens/:id/heartbeat', (req, res) => {
             });
             
             logSuccess(`מסך צפייה נוצר ועודכן: ${id}`);
+            // מסך חדש - תמיד שולח עדכון
             const currentTime = new Date().toISOString();
-            console.log(`📡 שולח screen_status_updated: ${id} - ${currentTime}`);
-            logInfo(`📡 שולח screen_status_updated: ${id} - ${currentTime}`);
+            console.log(`📡 שולח screen_status_updated (מסך חדש): ${id} - ${currentTime}`);
+            logInfo(`📡 שולח screen_status_updated (מסך חדש): ${id} - ${currentTime}`);
             io.emit('screen_status_updated', { id, last_seen: currentTime });
+            lastHeartbeatTime.set(id, now);
             res.json({ message: 'מסך צפייה נוצר ועודכן', created: true });
           }
         );
       } else {
         logInfo(`סטטוס מסך צפייה עודכן: ${id}`);
-        const currentTime = new Date().toISOString();
-        console.log(`📡 שולח screen_status_updated: ${id} - ${currentTime}`);
-        logInfo(`📡 שולח screen_status_updated: ${id} - ${currentTime}`);
-        io.emit('screen_status_updated', { id, last_seen: currentTime });
+        
+        // שליחת עדכון לפאנל ניהול רק אם עבר מספיק זמן
+        if (shouldNotifyAdmin) {
+          const currentTime = new Date().toISOString();
+          console.log(`📡 שולח screen_status_updated (עדכון מתוזמן): ${id} - ${currentTime}`);
+          logInfo(`📡 שולח screen_status_updated (עדכון מתוזמן): ${id} - ${currentTime}`);
+          io.emit('screen_status_updated', { id, last_seen: currentTime });
+          lastHeartbeatTime.set(id, now);
+        } else {
+          console.log(`🔇 מדלג על עדכון פאנל ניהול (עדכון שקט)`);
+        }
+        
         console.log(`✅ Heartbeat הושלם - סטטוס מסך צפייה עודכן`);
-        res.json({ message: 'סטטוס מסך צפייה עודכן', created: false });
+        res.json({ message: 'סטטוס מסך צפייה עודכן', created: false, admin_notified: shouldNotifyAdmin });
       }
     });
   } else {
