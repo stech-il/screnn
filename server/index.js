@@ -148,12 +148,45 @@ const requireAuth = (req, res, next) => {
   }
 };
 
+// Super Admin middleware - allows access to any function
+const requireSuperAdmin = (req, res, next) => {
+  db.get('SELECT role FROM users WHERE id = ?', [req.session.userId], (err, user) => {
+    if (err) {
+      return res.status(500).json({ error: 'שגיאה בבדיקת הרשאות' });
+    }
+    
+    if (user && user.role === 'super_admin') {
+      logSuccess(`🔓 Super Admin ${req.session.userId} - גישה מלאה`);
+      return next();
+    }
+    
+    return res.status(403).json({ error: 'אין לך הרשאה - נדרשת רמת Super Admin' });
+  });
+};
+
 // Permission middleware
 const requirePermission = (permissionType) => {
   return async (req, res, next) => {
     try {
       const { screenId } = req.params;
       logInfo(`🔒 בדיקת הרשאה - סוג: ${permissionType}, משתמש: ${req.session.userId}`);
+      
+      // Check if user is super_admin first - they have access to everything
+      const userRole = await new Promise((resolve, reject) => {
+        db.get(
+          'SELECT role FROM users WHERE id = ?',
+          [req.session.userId],
+          (err, row) => {
+            if (err) reject(err);
+            else resolve(row);
+          }
+        );
+      });
+
+      if (userRole && userRole.role === 'super_admin') {
+        logSuccess(`🔓 משתמש super_admin - גישה מלאה לכל המסכים`);
+        return next();
+      }
       
       // Get user permissions for this screen
       const permission = await new Promise((resolve, reject) => {
@@ -1491,6 +1524,91 @@ app.get('/api/time', (req, res) => {
     time: now.toLocaleTimeString('he-IL'),
     date: now.toLocaleDateString('he-IL'),
     timestamp: now.getTime()
+  });
+});
+
+// Grant Super Admin full permissions to all screens
+app.post('/api/admin/grant-super-admin-access', requireAuth, requireSuperAdmin, (req, res) => {
+  logInfo('🔓 מענק הרשאות Super Admin מלאות לכל המסכים');
+  
+  const userId = req.session.userId;
+  
+  // Get all screens
+  db.all('SELECT id FROM screens', (err, screens) => {
+    if (err) {
+      logError(err, 'שליפת מסכים להענקת הרשאות');
+      return res.status(500).json({ error: 'שגיאה בשליפת מסכים' });
+    }
+    
+    if (screens.length === 0) {
+      return res.json({ message: 'אין מסכים במערכת' });
+    }
+    
+    let completed = 0;
+    const errors = [];
+    
+    screens.forEach(screen => {
+      // Check if permission already exists
+      db.get(
+        'SELECT id FROM screen_permissions WHERE user_id = ? AND screen_id = ?',
+        [userId, screen.id],
+        (checkErr, existing) => {
+          if (checkErr) {
+            errors.push(`שגיאה בבדיקת הרשאה למסך ${screen.id}: ${checkErr.message}`);
+            completed++;
+            return;
+          }
+          
+          if (existing) {
+            // Update existing permission to admin
+            db.run(
+              'UPDATE screen_permissions SET permission_type = ? WHERE user_id = ? AND screen_id = ?',
+              ['admin', userId, screen.id],
+              (updateErr) => {
+                if (updateErr) {
+                  errors.push(`שגיאה בעדכון הרשאה למסך ${screen.id}: ${updateErr.message}`);
+                }
+                completed++;
+                if (completed === screens.length) {
+                  finishResponse();
+                }
+              }
+            );
+          } else {
+            // Create new permission
+            db.run(
+              'INSERT INTO screen_permissions (id, user_id, screen_id, permission_type) VALUES (?, ?, ?, ?)',
+              [uuidv4(), userId, screen.id, 'admin'],
+              (insertErr) => {
+                if (insertErr) {
+                  errors.push(`שגיאה ביצירת הרשאה למסך ${screen.id}: ${insertErr.message}`);
+                }
+                completed++;
+                if (completed === screens.length) {
+                  finishResponse();
+                }
+              }
+            );
+          }
+        }
+      );
+    });
+    
+    function finishResponse() {
+      if (errors.length > 0) {
+        logWarn(`חלק מההרשאות נכשלו: ${errors.join(', ')}`);
+        return res.status(207).json({ 
+          message: `הרשאות עודכנו עם שגיאות: ${errors.length}/${screens.length}`,
+          errors 
+        });
+      }
+      
+      logSuccess(`🎉 הוענקו הרשאות מלאות ל-${screens.length} מסכים למשתמש Super Admin`);
+      res.json({ 
+        message: `הוענקו הרשאות מלאות ל-${screens.length} מסכים`,
+        screens_count: screens.length 
+      });
+    }
   });
 });
 

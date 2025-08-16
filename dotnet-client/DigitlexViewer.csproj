@@ -5,6 +5,27 @@
     <UseWPF>true</UseWPF>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    
+    <!-- הגדרות להפצה -->
+    <AssemblyTitle>Digitlex Viewer</AssemblyTitle>
+    <AssemblyDescription>מסך דיגיטלי לתצוגת תוכן בזמן אמת</AssemblyDescription>
+    <AssemblyCompany>שי טכנולוגיות</AssemblyCompany>
+    <AssemblyProduct>Digitlex</AssemblyProduct>
+    <AssemblyCopyright>© 2025 שי טכנולוגיות. כל הזכויות שמורות.</AssemblyCopyright>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+    
+    <!-- הגדרות Single File ו Self-Contained -->
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>true</SelfContained>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <PublishReadyToRun>true</PublishReadyToRun>
+    <PublishTrimmed>false</PublishTrimmed>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    
+    <!-- הגדרות ממשק משתמש -->
+    <!-- <ApplicationIcon>assets\icon.ico</ApplicationIcon> -->
+    <Win32Resource></Win32Resource>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />

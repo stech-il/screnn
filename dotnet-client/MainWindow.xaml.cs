@@ -553,24 +553,46 @@ public partial class MainWindow : Window
             BorderBrush = (Brush)new BrushConverter().ConvertFromString("#1f3763"),
             BorderThickness = new Thickness(1),
             Padding = new Thickness(10),
-            Margin = new Thickness(8, 12, 8, 0)
+            Margin = new Thickness(8, 12, 8, 0),
+            FlowDirection = FlowDirection.RightToLeft,
+            HorizontalAlignment = HorizontalAlignment.Stretch
         };
+        
+        // Use a Grid to force RTL layout
+        var grid = new Grid
+        {
+            FlowDirection = FlowDirection.RightToLeft,
+            HorizontalAlignment = HorizontalAlignment.Stretch
+        };
+        
         var tb = new TextBlock
         {
-            Text = text,
+            Text = $"• {text}", // Add bullet point for RTL testing
             Foreground = (Brush)new BrushConverter().ConvertFromString("#e6f0ff"),
             TextWrapping = TextWrapping.Wrap,
             TextAlignment = TextAlignment.Right,
-            FontSize = 19
+            FontSize = 19,
+            FlowDirection = FlowDirection.RightToLeft,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Margin = new Thickness(0),
+            Padding = new Thickness(5, 0, 5, 0) // Add some padding
         };
-        border.Child = tb;
+        
+        grid.Children.Add(tb);
+        border.Child = grid;
         return border;
     }
 
     private void LayoutRootMessages()
     {
-        MessagesStack1.Measure(new Size(MessagesCanvas.ActualWidth, double.PositiveInfinity));
-        MessagesStack2.Measure(new Size(MessagesCanvas.ActualWidth, double.PositiveInfinity));
+        double canvasWidth = MessagesCanvas.ActualWidth;
+        MessagesStack1.Measure(new Size(canvasWidth, double.PositiveInfinity));
+        MessagesStack2.Measure(new Size(canvasWidth, double.PositiveInfinity));
+        
+        // Set width explicitly for RTL alignment
+        MessagesStack1.Width = canvasWidth;
+        MessagesStack2.Width = canvasWidth;
+        
         Canvas.SetLeft(MessagesStack1, 0);
         Canvas.SetLeft(MessagesStack2, 0);
         Canvas.SetTop(MessagesStack1, 0);

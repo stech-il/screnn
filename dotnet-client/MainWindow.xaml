@@ -49,7 +49,7 @@
     </Grid>
 
     <!-- Messages side panel (styled card) -->
-    <Border Grid.Row="1" Grid.Column="1" Background="#0f1a30" BorderBrush="#15223b" BorderThickness="2" Padding="10" CornerRadius="12">
+    <Border Grid.Row="1" Grid.Column="1" Background="#0f1a30" BorderBrush="#15223b" BorderThickness="2" Padding="10" CornerRadius="12" FlowDirection="RightToLeft">
       <Border.Effect>
         <DropShadowEffect Color="#000000" BlurRadius="12" ShadowDepth="0" Opacity="0.4"/>
       </Border.Effect>
@@ -58,11 +58,11 @@
           <RowDefinition Height="Auto"/>
           <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
-        <TextBlock Text="הודעות ועדכונים" Foreground="#ffd700" FontWeight="Bold" Margin="12" Grid.Row="0" HorizontalAlignment="Center" FontSize="24"/>
+        <TextBlock Text="הודעות ועדכונים" Foreground="#ffd700" FontWeight="Bold" Margin="12" Grid.Row="0" HorizontalAlignment="Center" FontSize="24" TextAlignment="Center"/>
         <Border Grid.Row="1" Background="#0b1c33" CornerRadius="10" Padding="8" Margin="8" BorderBrush="#203b66" BorderThickness="1" ClipToBounds="True">
           <Canvas x:Name="MessagesCanvas">
-            <StackPanel x:Name="MessagesStack1"/>
-            <StackPanel x:Name="MessagesStack2"/>
+            <StackPanel x:Name="MessagesStack1" FlowDirection="RightToLeft" HorizontalAlignment="Stretch"/>
+            <StackPanel x:Name="MessagesStack2" FlowDirection="RightToLeft" HorizontalAlignment="Stretch"/>
           </Canvas>
         </Border>
       </Grid>

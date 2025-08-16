@@ -12,7 +12,8 @@ import {
   UserOutlined,
   LogoutOutlined,
   TeamOutlined,
-  KeyOutlined
+  KeyOutlined,
+  LockOutlined
 } from '@ant-design/icons';
 import api from './utils/axios';
 
@@ -78,6 +79,26 @@ function App() {
     } catch (error) {
       notification.error({
         message: 'שגיאה בהתנתקות',
+        placement: 'topRight'
+      });
+    }
+  };
+
+  const handleGrantSuperAdminAccess = async () => {
+    try {
+      const response = await api.post('/api/admin/grant-super-admin-access');
+      notification.success({
+        message: 'הרשאות עודכנו',
+        description: response.data.message,
+        placement: 'topRight'
+      });
+      // Refresh screens list to show new access
+      const screensResponse = await api.get('/api/user/screens');
+      setScreens(screensResponse.data);
+    } catch (error) {
+      notification.error({
+        message: 'שגיאה במתן הרשאות',
+        description: error.response?.data?.error || error.message,
         placement: 'topRight'
       });
     }
@@ -297,6 +318,15 @@ function App() {
     {
       type: 'divider'
     },
+    // Super Admin button - only for super_admin role
+    ...(user.role === 'super_admin' ? [{
+      key: 'grant_permissions',
+      icon: <LockOutlined />,
+      label: 'הענק הרשאות מלאות',
+      onClick: handleGrantSuperAdminAccess
+    }, {
+      type: 'divider'
+    }] : []),
     {
       key: 'change_password',
       icon: <KeyOutlined />,
